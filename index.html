@@ -435,7 +435,23 @@
                                             {/* PLANNER CARD */}
                                             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col flex-1 overflow-hidden">
                                                 <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-blue-50/30">
-                                                    <h3 className="font-bold text-md flex items-center gap-2 text-[#003B6E]"><Users size={18} /> Planner (Team)</h3>
+                                                    <div className="flex items-center gap-3">
+                                                         <h3 className="font-bold text-md flex items-center gap-2 text-[#003B6E]"><Users size={18} /> Planner (Team)</h3>
+                                                         {(plannerStats.high > 0 || plannerStats.overdue > 0) && (
+                                                            <div className="flex gap-2">
+                                                                {plannerStats.high > 0 && (
+                                                                    <span className="text-[10px] font-bold text-[#E4002B] bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full flex items-center gap-1" title="Hohe Priorität">
+                                                                        <AlertTriangle size={10} /> {plannerStats.high}
+                                                                    </span>
+                                                                )}
+                                                                {plannerStats.overdue > 0 && (
+                                                                    <span className="text-[10px] font-bold text-[#E4002B] bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full flex items-center gap-1" title="Überfällig">
+                                                                        <Clock size={10} /> {plannerStats.overdue}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                         )}
+                                                    </div>
                                                     <button onClick={() => setActiveTab('planner')} className="text-xs font-medium text-slate-400 hover:text-[#003B6E] transition"><ArrowRight size={16} /></button>
                                                 </div>
                                                 <div className="p-4 flex-1 overflow-y-auto max-h-[250px] scrollbar-hide">

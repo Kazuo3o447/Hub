@@ -31,6 +31,9 @@
         .chat-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
         .chat-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .chat-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Drag & Drop Zone Styling */
+        .drag-active { background-color: #eff6ff; border-color: #003B6E; }
     </style>
 </head>
 <body class="text-slate-800 h-screen overflow-hidden">
@@ -45,10 +48,11 @@
             LayoutDashboard, LogOut, Globe, CheckCircle, Menu, X, Calendar, 
             MessageSquare, Zap, Newspaper, Bell, ListTodo, Plus, Trash2, 
             CheckSquare, Loader2, RefreshCw, Briefcase, Bot, ArrowRight,
-            ExternalLink, FileText, MapPin, Video, Users, Clock, AlertTriangle, CalendarClock, Database, Link as LinkIcon, Info
+            ExternalLink, FileText, MapPin, Video, Users, Clock, AlertTriangle, CalendarClock, Database, Link as LinkIcon, Info,
+            File, UploadCloud, Share2, FolderOpen
         } from 'lucide-react';
 
-        // --- ERROR BOUNDARY (Fixes White Screen Mystery) ---
+        // --- ERROR BOUNDARY ---
         class ErrorBoundary extends React.Component {
             constructor(props) { super(props); this.state = { hasError: false, error: null }; }
             static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -79,8 +83,9 @@
             cache: { cacheLocation: "sessionStorage" }
         };
 
+        // UPDATED SCOPES for Files
         const loginRequest = {
-            scopes: ["User.Read", "Calendars.ReadWrite", "Tasks.ReadWrite", "Sites.Read.All"] 
+            scopes: ["User.Read", "Calendars.ReadWrite", "Tasks.ReadWrite", "Sites.Read.All", "Files.Read", "Files.Read.All", "Files.ReadWrite"] 
         };
 
         const msalInstance = new PublicClientApplication(msalConfig);
@@ -105,7 +110,6 @@
 
         // --- COMPONENTS ---
         
-        // Helper for To-Do Form Input (Defined outside to prevent re-render focus loss)
         const TodoInputForm = ({ 
             onSubmit, 
             newTodoText, setNewTodoText, 
@@ -161,6 +165,10 @@
             const [calendarEvents, setCalendarEvents] = useState([]);
             const [plannerTasks, setPlannerTasks] = useState([]);
             const [isLoadingData, setIsLoadingData] = useState(false);
+            
+            // Document States
+            const [sharedDocs, setSharedDocs] = useState([]);
+            const [dragActive, setDragActive] = useState(false);
 
             // Mock Data for Intranet
             const [intranetNews, setIntranetNews] = useState([
@@ -168,12 +176,7 @@
                 { id: 2, title: "Wartungsarbeiten SharePoint", summary: "Samstag 10-12 Uhr eingeschränkt.", date: "Gestern", category: "IT", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
                 { id: 3, title: "Erfolg auf der Hannover Messe", summary: "Besucherrekord am GTAI Stand.", date: "28.10.", category: "News", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
                 { id: 4, title: "Weihnachtsfeier 2024", summary: "Einladung und Anmeldung ab sofort möglich.", date: "25.10.", category: "Events", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 5, title: "Quartalszahlen Q3", summary: "Positive Entwicklung in den Kernmärkten.", date: "20.10.", category: "Management", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 6, title: "Neues IT-Ticket System", summary: "Ab November nutzen wir Jira Service Management.", date: "15.10.", category: "IT", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 7, title: "Gesundheitstag", summary: "Kostenlose Check-ups im Foyer.", date: "10.10.", category: "HR", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 8, title: "Webinar: KI im Export", summary: "Expertenrunde am Donnerstag.", date: "05.10.", category: "Webinar", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 9, title: "Kantinenplan November", summary: "Der neue Speiseplan ist online.", date: "01.10.", category: "Service", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 10, title: "Jubiläum: 10 Jahre Standort Bonn", summary: "Rückblick auf eine Erfolgsgeschichte.", date: "28.09.", category: "News", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" }
+                { id: 5, title: "Quartalszahlen Q3", summary: "Positive Entwicklung in den Kernmärkten.", date: "20.10.", category: "Management", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" }
             ]);
 
             // Local States
@@ -193,7 +196,11 @@
 
             // --- EFFECTS ---
             useEffect(() => {
-                if (isAuthenticated && accounts[0]) loadAllData();
+                if (isAuthenticated && accounts[0]) {
+                    loadAllData();
+                    // In a real scenario, fetch shared docs here too
+                    // fetchSharedDocs();
+                }
             }, [isAuthenticated, accounts]);
 
             useEffect(() => {
@@ -216,7 +223,7 @@
 
                     // Calendar
                     const start = new Date().toISOString();
-                    const end = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(); // 2 Weeks
+                    const end = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(); 
                     const calData = await callMsGraph(instance, accounts, `/me/calendarview?startDateTime=${start}&endDateTime=${end}&$top=20&$orderby=start/dateTime`);
                     
                     const enrichedEvents = (calData.value || []).map(evt => {
@@ -243,6 +250,15 @@
                         planName: ["Marketing Team", "IT Projekt Alpha", "HR Onboarding"][Math.floor(Math.random() * 3)]
                     }));
                     setPlannerTasks(enrichedTasks);
+
+                    // Mocking Shared Docs for Demo
+                    setSharedDocs([
+                        { id: 1, name: "Projektplan_2025.xlsx", sharedBy: "Max Mustermann", date: "Vor 2 Std" },
+                        { id: 2, name: "Budget_Review_Q4.pdf", sharedBy: "Julia Sommer", date: "Gestern" },
+                        { id: 3, name: "Marketing_Assets_V2.pptx", sharedBy: "Team Marketing", date: "28.10." },
+                        { id: 4, name: "Onboarding_Checklist.docx", sharedBy: "HR Department", date: "25.10." },
+                    ]);
+
                 } catch (e) { console.error(e); } finally { setIsLoadingData(false); }
             };
 
@@ -264,7 +280,7 @@
                 try { 
                     const response = await callMsGraph(instance, accounts, "/me/events", "POST", event); 
                     loadAllData();
-                    return response.id; // Return the new event ID
+                    return response.id; 
                 } catch (e) { 
                     alert(e.message); 
                     return null;
@@ -293,7 +309,6 @@
                     text: newTodoText, 
                     isBlocker, 
                     done: false,
-                    // Save blocker details for display and deletion
                     blockerDate,
                     blockerTimeStart,
                     blockerTimeEnd,
@@ -302,7 +317,6 @@
                 
                 setNewTodoText(''); 
                 setIsBlocker(false);
-                // Reset times to default
                 setBlockerDate(new Date().toISOString().slice(0, 10));
                 setBlockerTimeStart("09:00");
                 setBlockerTimeEnd("10:00");
@@ -311,7 +325,6 @@
             const toggleTodo = (id) => {
                 const todo = todos.find(t => t.id === id);
                 if (todo && !todo.done && todo.eventId) {
-                    // If marking as done and it has an event, delete the event from Outlook
                     deleteCalendarBlocker(todo.eventId);
                 }
                 setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
@@ -343,6 +356,28 @@
                 }, 1500);
             };
 
+            // Drag and Drop Handlers
+            const handleDrag = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.type === "dragenter" || e.type === "dragover") {
+                    setDragActive(true);
+                } else if (e.type === "dragleave") {
+                    setDragActive(false);
+                }
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragActive(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    // Logic to upload file would go here
+                    // e.g., callMsGraph(..., "/me/drive/root/children/filename/content", "PUT", file)
+                    alert(`Datei "${e.dataTransfer.files[0].name}" bereit zum Upload (Simulation)`);
+                }
+            };
+
             const getFirstName = () => userProfile.displayName ? userProfile.displayName.split(',')[1]?.trim() || userProfile.displayName.split(' ')[0] : "Gast";
 
             // --- LOGIN SCREEN ---
@@ -351,10 +386,7 @@
                     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
                         <div className="bg-white p-12 rounded-lg shadow-xl text-center max-w-sm w-full border border-slate-100">
                             <h1 className="text-6xl font-extrabold text-[#001A44] mb-8 tracking-tighter">GTAI</h1>
-                            
                             <h2 className="text-xl text-slate-700 mb-8 font-medium">GTAI-Hub Login</h2>
-                            
-                            {/* Updated Button to catch errors */}
                             <button onClick={() => instance.loginPopup(loginRequest).catch(e => console.log("Login cancelled/failed", e))} className="w-full bg-[#2F2F2F] text-white py-3 px-4 rounded-none hover:bg-black transition font-semibold flex justify-center items-center gap-3">
                                 <div className="grid grid-cols-2 gap-0.5">
                                     <div className="w-2.5 h-2.5 bg-[#F25022]"></div>
@@ -364,7 +396,6 @@
                                 </div>
                                 Anmelden
                             </button>
-                            
                             <p className="text-xs text-slate-400 mt-8">Du brauchst ein aktives GTAI-Konto.</p>
                         </div>
                     </div>
@@ -415,6 +446,10 @@
                                 <Calendar size={20} /> {isSidebarOpen && <span>Kalender</span>}
                             </button>
 
+                            <button onClick={() => setActiveTab('documents')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'documents' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <FileText size={20} /> {isSidebarOpen && <span>Dokumente</span>}
+                            </button>
+
                             <button onClick={() => setActiveTab('news')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'news' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
                                 <Newspaper size={20} /> {isSidebarOpen && <span>GTAI News</span>}
                             </button>
@@ -443,8 +478,8 @@
                     <main className="flex-1 flex flex-col h-full bg-[#f3f4f6]">
                         <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10 shrink-0">
                             <h2 className="text-xl font-bold text-slate-800 capitalize flex items-center gap-2">
-                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'planner' ? <Users className="text-[#003B6E]" /> : activeTab === 'todo' ? <ListTodo className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : activeTab === 'news' ? <Newspaper className="text-[#003B6E]" /> : null}
-                                {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'planner' ? 'Planner (Teamaufgaben)' : activeTab === 'todo' ? 'Meine To-Dos' : activeTab === 'calendar' ? 'Mein Kalender' : activeTab === 'news' ? 'GTAI News' : 'Dashboard'}
+                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'planner' ? <Users className="text-[#003B6E]" /> : activeTab === 'todo' ? <ListTodo className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : activeTab === 'documents' ? <FileText className="text-[#003B6E]" /> : activeTab === 'news' ? <Newspaper className="text-[#003B6E]" /> : null}
+                                {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'planner' ? 'Planner (Teamaufgaben)' : activeTab === 'todo' ? 'Meine To-Dos' : activeTab === 'calendar' ? 'Mein Kalender' : activeTab === 'documents' ? 'Dokumente & Teilen' : activeTab === 'news' ? 'GTAI News' : 'Dashboard'}
                             </h2>
                             <div className="flex items-center gap-4">
                                 <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 transition ${isLoadingData && 'animate-spin text-[#003B6E]'}`}><RefreshCw size={20}/></button>
@@ -682,6 +717,82 @@
                                             <p className="text-[10px] text-slate-400">KI-generierte Inhalte können fehlerhaft sein. Bitte überprüfe wichtige Informationen.</p>
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {/* ================= DOCUMENT SHARE VIEW (NEW) ================= */}
+                            {activeTab === 'documents' && (
+                                <div className="max-w-6xl mx-auto h-[85vh] flex gap-6 fade-in">
+                                    
+                                    {/* Left Column: List Views */}
+                                    <div className="w-1/2 flex flex-col gap-6">
+                                        
+                                        {/* Shared with Me */}
+                                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-1/2 overflow-hidden">
+                                            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                                <h3 className="font-bold text-lg text-[#003B6E] flex items-center gap-2"><Share2 size={20} /> Mit mir geteilt</h3>
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                                {sharedDocs.map(doc => (
+                                                    <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-[#003B6E] hover:bg-blue-50/30 transition cursor-pointer group">
+                                                        <div className="p-2 bg-white rounded-lg border border-slate-200 text-[#003B6E]"><FileText size={20} /></div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium text-slate-800 text-sm truncate">{doc.name}</p>
+                                                            <p className="text-xs text-slate-500">Von {doc.sharedBy} • {doc.date}</p>
+                                                        </div>
+                                                        <button className="p-2 text-slate-400 hover:text-[#003B6E] transition"><ArrowRight size={16} /></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Shared by Me (Mock) */}
+                                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-1/2 overflow-hidden">
+                                            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                                <h3 className="font-bold text-lg text-[#003B6E] flex items-center gap-2"><FolderOpen size={20} /> Von mir geteilt</h3>
+                                            </div>
+                                            <div className="flex-1 flex items-center justify-center text-slate-400 italic text-sm">
+                                                <p>Keine Dokumente geteilt.</p>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Right Column: Upload Zone */}
+                                    <div className="w-1/2 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+                                        <div className="p-6 border-b border-slate-100 bg-[#003B6E] text-white">
+                                            <h2 className="text-xl font-bold flex items-center gap-3"><UploadCloud size={24} /> Datei teilen</h2>
+                                            <p className="text-blue-100 text-xs mt-1">Lade Dokumente hoch, um sie schnell mit Kollegen zu teilen.</p>
+                                        </div>
+                                        
+                                        <div 
+                                            className={`flex-1 m-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${dragActive ? 'drag-active' : 'border-slate-300 hover:border-[#003B6E] hover:bg-slate-50'}`}
+                                            onDragEnter={handleDrag}
+                                            onDragLeave={handleDrag}
+                                            onDragOver={handleDrag}
+                                            onDrop={handleDrop}
+                                        >
+                                            <div className="p-4 bg-blue-50 rounded-full text-[#003B6E] mb-4">
+                                                <UploadCloud size={40} />
+                                            </div>
+                                            <p className="text-lg font-bold text-slate-700">Dateien hier ablegen</p>
+                                            <p className="text-sm text-slate-400 mt-2">oder klicken zum Auswählen</p>
+                                            <button className="mt-6 bg-[#003B6E] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-900 transition">Datei wählen</button>
+                                        </div>
+
+                                        <div className="p-6 bg-slate-50 border-t border-slate-100">
+                                            <h4 className="font-bold text-sm text-slate-700 mb-3">Zuletzt hochgeladen</h4>
+                                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
+                                                <div className="w-8 h-8 flex items-center justify-center bg-green-100 text-green-700 rounded"><File size={16} /></div>
+                                                <div className="flex-1">
+                                                    <p className="text-xs font-bold text-slate-800">Meeting_Notes.pdf</p>
+                                                    <p className="text-[10px] text-slate-500">Erfolgreich geteilt</p>
+                                                </div>
+                                                <CheckCircle size={16} className="text-green-500" />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </div>
                             )}
 

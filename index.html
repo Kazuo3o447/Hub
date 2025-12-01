@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GTAI Hub (Modern)</title>
+    <title>GTAI Hub (Platform)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
     {
@@ -25,6 +25,12 @@
         
         /* Hover Effekte */
         .hover-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        
+        /* Custom Scrollbar für Chat */
+        .chat-scroll::-webkit-scrollbar { width: 6px; }
+        .chat-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .chat-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body class="text-slate-800 h-screen overflow-hidden">
@@ -85,6 +91,7 @@
             
             // UI States
             const [activeTaskTab, setActiveTaskTab] = useState('planner'); // 'planner' or 'todo'
+            const messagesEndRef = useRef(null); // FIXED: Added missing ref
 
             // Data States
             const [userProfile, setUserProfile] = useState({ displayName: "", jobTitle: "", mail: "", photoUrl: null });
@@ -105,14 +112,24 @@
             ]);
             const [newTodoText, setNewTodoText] = useState('');
             const [isBlocker, setIsBlocker] = useState(false);
-            const [messages, setMessages] = useState([{ sender: 'bot', text: "Hallo! Ich bin Dexter. Wie kann ich helfen?" }]);
+            
+            // Chat States
+            const [messages, setMessages] = useState([{ sender: 'bot', text: "Hallo! Ich bin Dexter, dein GTAI Copilot. Ich kann dir bei der Suche nach Dokumenten helfen, Termine planen oder Fragen zu internen Prozessen beantworten." }]);
             const [dexterInput, setDexterInput] = useState('');
+            const [isTyping, setIsTyping] = useState(false);
 
-            // --- LOAD DATA ---
+            // --- EFFECTS ---
             useEffect(() => {
                 if (isAuthenticated && accounts[0]) loadAllData();
             }, [isAuthenticated, accounts]);
 
+            useEffect(() => {
+                if (messagesEndRef.current) {
+                    messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+                }
+            }, [messages]);
+
+            // --- LOAD DATA ---
             const loadAllData = async () => {
                 setIsLoadingData(true);
                 try {
@@ -126,8 +143,8 @@
 
                     // Calendar
                     const start = new Date().toISOString();
-                    const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-                    const calData = await callMsGraph(instance, accounts, `/me/calendarview?startDateTime=${start}&endDateTime=${end}&$top=5&$orderby=start/dateTime`);
+                    const end = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(); // 2 Weeks
+                    const calData = await callMsGraph(instance, accounts, `/me/calendarview?startDateTime=${start}&endDateTime=${end}&$top=20&$orderby=start/dateTime`);
                     
                     const enrichedEvents = (calData.value || []).map(evt => {
                         const d = new Date(evt.start.dateTime);
@@ -145,7 +162,6 @@
 
                     // Planner
                     const taskData = await callMsGraph(instance, accounts, "/me/planner/tasks");
-                    // Enrich with Mock Team Names (Graph doesn't give Plan names directly in task list easily without extra calls)
                     const enrichedTasks = (taskData.value || []).map(t => ({
                         ...t,
                         planName: ["Marketing Team", "IT Projekt Alpha", "HR Onboarding"][Math.floor(Math.random() * 3)]
@@ -173,6 +189,26 @@
                 setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
             };
 
+            const handleChatSubmit = (e) => {
+                e.preventDefault();
+                if(!dexterInput.trim()) return;
+                
+                const userMsg = dexterInput;
+                setMessages(prev => [...prev, {sender:'user', text: userMsg}]);
+                setDexterInput('');
+                setIsTyping(true);
+
+                // Simulation Copilot Response
+                setTimeout(() => {
+                    let response = "Ich habe das verstanden. Da ich aktuell im Demo-Modus bin, kann ich keine echten Aktionen ausführen, aber ich würde jetzt im Backend nach '" + userMsg + "' suchen.";
+                    if (userMsg.toLowerCase().includes('termin')) response = "Ich kann gerne einen Termin für dich einstellen. Wann passt es dir am besten?";
+                    if (userMsg.toLowerCase().includes('bericht') || userMsg.toLowerCase().includes('dokument')) response = "Ich habe 3 Dokumente zu diesem Thema im SharePoint gefunden. Soll ich sie zusammenfassen?";
+                    
+                    setMessages(prev => [...prev, {sender:'bot', text: response}]);
+                    setIsTyping(false);
+                }, 1500);
+            };
+
             const getFirstName = () => userProfile.displayName ? userProfile.displayName.split(',')[1]?.trim() || userProfile.displayName.split(' ')[0] : "Gast";
 
             // --- LOGIN SCREEN ---
@@ -194,13 +230,12 @@
             // --- PLANNER STATS CALCULATION ---
             const plannerStats = {
                 total: plannerTasks.length,
-                high: plannerTasks.filter(t => t.priority < 5).length, // Graph API: 0-4 is High/Urgent
+                high: plannerTasks.filter(t => t.priority < 5).length,
                 overdue: plannerTasks.filter(t => t.dueDateTime && new Date(t.dueDateTime) < new Date()).length
             };
 
             // --- GROUPING FOR CALENDAR ---
             const groupedEvents = calendarEvents.reduce((groups, event) => {
-                // Safe check for dateObj to prevent crash if data is raw
                 if (!event.dateObj) return groups; 
                 const key = ['Heute', 'Morgen'].includes(event.dateObj.label) ? event.dateObj.label : event.dateObj.date;
                 if (!groups[key]) groups[key] = { label: key, dateFull: event.dateObj.date, events: [] };
@@ -223,7 +258,7 @@
                                 { id: 'dashboard', icon: <LayoutDashboard />, label: 'Dashboard' },
                                 { id: 'tasks', icon: <CheckCircle />, label: 'Aufgaben' },
                                 { id: 'calendar', icon: <Calendar />, label: 'Kalender' },
-                                { id: 'copilot', icon: <Bot />, label: 'Dexter Agent' }
+                                { id: 'copilot', icon: <Bot />, label: 'Dexter' }
                             ].map(item => (
                                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
                                     {item.icon} {isSidebarOpen && <span>{item.label}</span>}
@@ -248,10 +283,10 @@
 
                     {/* MAIN CONTENT */}
                     <main className="flex-1 flex flex-col h-full bg-[#f3f4f6]">
-                        <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10">
+                        <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10 shrink-0">
                             <h2 className="text-xl font-bold text-slate-800 capitalize flex items-center gap-2">
-                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : null}
-                                {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'todo' ? 'Meine Fokus-Liste' : activeTab === 'tasks' ? 'Planner Übersicht' : activeTab}
+                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'tasks' ? <CheckCircle className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : null}
+                                {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'tasks' ? 'Aufgaben & Planung' : activeTab === 'calendar' ? 'Mein Kalender' : 'Dashboard'}
                             </h2>
                             <div className="flex items-center gap-4">
                                 <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 transition ${isLoadingData && 'animate-spin text-[#003B6E]'}`}><RefreshCw size={20}/></button>
@@ -263,10 +298,12 @@
                             </div>
                         </header>
 
-                        <div className="flex-1 overflow-auto p-8">
+                        <div className="flex-1 overflow-hidden relative">
+                            <div className="absolute inset-0 overflow-y-auto p-8">
+                            
+                            {/* ================= DASHBOARD VIEW ================= */}
                             {activeTab === 'dashboard' && (
                                 <div className="max-w-7xl mx-auto space-y-8 fade-in">
-                                    
                                     {/* HERO SECTION */}
                                     <div className="bg-[#003B6E] rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                                         <div className="relative z-10 max-w-3xl">
@@ -278,7 +315,7 @@
                                                 </p>
                                             </div>
                                             
-                                            <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); }} className="flex gap-0 shadow-xl rounded-xl overflow-hidden w-full max-w-xl">
+                                            <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); setTimeout(()=> { setMessages(p=>[...p, {sender:'bot', text: 'Wie kann ich helfen?'}])}, 1000); }} className="flex gap-0 shadow-xl rounded-xl overflow-hidden w-full max-w-xl">
                                                 <div className="relative flex-1 bg-white">
                                                     <Bot className="absolute left-4 top-3.5 text-slate-400" size={20} />
                                                     <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-12 pr-4 py-3 text-slate-800 outline-none" />
@@ -293,14 +330,11 @@
 
                                     {/* CONTENT GRID */}
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                        
-                                        {/* KALENDER CARD */}
+                                        {/* KALENDER WIDGET */}
                                         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col h-full overflow-hidden group">
                                             <div className="p-6 border-b border-slate-50 flex justify-between items-center">
                                                 <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Calendar className="text-[#003B6E]" /> Nächste Termine</h3>
-                                                <a href="https://outlook.office.com/calendar/view/day" target="_blank" className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition flex items-center gap-1">
-                                                    Öffnen <ExternalLink size={12} />
-                                                </a>
+                                                <button onClick={() => setActiveTab('calendar')} className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition flex items-center gap-1">Alle anzeigen <ArrowRight size={12} /></button>
                                             </div>
                                             <div className="p-6 space-y-5 flex-1">
                                                 {calendarEvents.length === 0 ? <p className="text-slate-400 italic">Keine Termine heute.</p> : 
@@ -324,32 +358,20 @@
                                             </div>
                                         </div>
 
-                                        {/* TASKS CARD (Split Planner / To-Do) */}
+                                        {/* TASKS WIDGET */}
                                         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col h-full overflow-hidden">
-                                            {/* TAB HEADER */}
                                             <div className="flex border-b border-slate-100">
-                                                <button 
-                                                    onClick={() => setActiveTaskTab('planner')}
-                                                    className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'planner' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
-                                                >
-                                                    Planner (Team)
-                                                </button>
-                                                <button 
-                                                    onClick={() => setActiveTaskTab('todo')}
-                                                    className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'todo' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
-                                                >
-                                                    To-Do (Privat)
-                                                </button>
+                                                <button onClick={() => setActiveTaskTab('planner')} className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'planner' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}>Planner (Team)</button>
+                                                <button onClick={() => setActiveTaskTab('todo')} className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'todo' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}>To-Do (Privat)</button>
                                             </div>
                                             
-                                            {/* CONTENT AREA */}
                                             <div className="p-6 flex-1 flex flex-col">
-                                                {/* PLANNER VIEW */}
+                                                {/* PLANNER MINI VIEW */}
                                                 {activeTaskTab === 'planner' && (
                                                     <div className="fade-in h-full flex flex-col">
                                                         <div className="flex justify-between items-center mb-4">
-                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine Aufgaben aus Teams</span>
-                                                            <a href="https://tasks.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine Aufgaben</span>
+                                                            <button onClick={() => setActiveTab('tasks')} className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Details <ArrowRight size={10} /></button>
                                                         </div>
                                                         <div className="space-y-3 flex-1">
                                                             {plannerTasks.length === 0 ? <p className="text-slate-400 italic text-sm">Alles erledigt!</p> : 
@@ -360,7 +382,6 @@
                                                                         <p className="text-sm font-medium text-slate-800 leading-snug break-words">{task.title}</p>
                                                                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                                                                             <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-medium">{task.planName}</span>
-                                                                            {task.dueDateTime && <span className="text-[#E4002B] flex items-center gap-1"><AlertTriangle size={10} /> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
                                                                         </p>
                                                                     </div>
                                                                 </div>
@@ -369,12 +390,12 @@
                                                     </div>
                                                 )}
 
-                                                {/* TO-DO VIEW */}
+                                                {/* TO-DO MINI VIEW */}
                                                 {activeTaskTab === 'todo' && (
                                                     <div className="fade-in h-full flex flex-col">
                                                         <div className="flex justify-between items-center mb-4">
-                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine private Liste</span>
-                                                            <a href="https://to-do.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Private Liste</span>
+                                                            <button onClick={() => setActiveTab('tasks')} className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Details <ArrowRight size={10} /></button>
                                                         </div>
                                                         <ul className="space-y-2 flex-1">
                                                             {todos.map(t => (
@@ -385,20 +406,13 @@
                                                                     <span className={`text-sm break-words flex-1 leading-snug transition-all ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.text}</span>
                                                                 </li>
                                                             ))}
-                                                            {todos.length === 0 && <li className="text-gray-400 text-sm italic">Liste leer.</li>}
                                                         </ul>
-                                                        <div className="pt-4 border-t border-slate-50">
-                                                             <form onSubmit={handleAddTodo} className="flex gap-2">
-                                                                <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Neue Aufgabe..." className="flex-1 text-sm border rounded px-2 py-1 focus:ring-1 focus:ring-[#003B6E] outline-none" />
-                                                                <button className="text-xs bg-[#003B6E] text-white px-3 py-1 rounded hover:bg-blue-900 font-bold">Add</button>
-                                                             </form>
-                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* NEWS CARD (BOTTOM RIGHT) */}
+                                        {/* NEWS WIDGET */}
                                         <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Globe className="text-[#003B6E]" /> GTAI Intranet News</h3>
@@ -417,135 +431,198 @@
                                                 ))}
                                             </div>
                                         </div>
-
                                     </div>
                                 </div>
                             )}
                             
-                            {/* COPILOT VIEW */}
+                            {/* ================= DEXTER COPILOT VIEW ================= */}
                             {activeTab === 'copilot' && (
-                                <div className="max-w-4xl mx-auto h-full flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden fade-in">
-                                    <div className="p-6 border-b border-slate-100 flex items-center gap-4 bg-slate-50/50">
-                                        <div className="w-12 h-12 bg-[#003B6E] rounded-full flex items-center justify-center shadow-lg text-white"><Bot size={24} /></div>
+                                <div className="max-w-5xl mx-auto h-[85vh] flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden fade-in">
+                                    <div className="p-6 border-b border-slate-100 flex items-center gap-4 bg-slate-50/80 backdrop-blur">
+                                        <div className="w-12 h-12 bg-[#003B6E] rounded-full flex items-center justify-center shadow-lg text-white ring-4 ring-blue-50"><Bot size={24} /></div>
                                         <div>
-                                            <h3 className="font-bold text-lg text-slate-800">Dexter</h3>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Online & Verbunden mit Graph API</p>
+                                            <h3 className="font-bold text-xl text-slate-800">Dexter</h3>
+                                            <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                                                <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold"><div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div> Online</span> 
+                                                <span className="text-slate-400">|</span> 
+                                                GTAI Copilot v0.9 (Beta)
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#f8fafc] chat-scroll">
                                         {messages.map((m, i) => (
                                             <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[80%] p-5 rounded-2xl shadow-sm text-sm leading-relaxed ${m.sender === 'user' ? 'bg-[#003B6E] text-white rounded-tr-none' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none'}`}>
+                                                <div className={`max-w-[80%] p-5 rounded-2xl shadow-sm text-sm leading-relaxed relative ${m.sender === 'user' ? 'bg-[#003B6E] text-white rounded-tr-none' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none'}`}>
                                                     {m.text}
                                                 </div>
                                             </div>
                                         ))}
+                                        {isTyping && (
+                                            <div className="flex justify-start">
+                                                <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none shadow-sm flex gap-1 items-center">
+                                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-100"></div>
+                                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-200"></div>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div ref={messagesEndRef} />
                                     </div>
                                     <div className="p-4 bg-white border-t border-slate-100">
-                                        <form onSubmit={(e) => { e.preventDefault(); if(!inputText.trim()) return; setMessages(p=>[...p,{sender:'user',text:inputText}]); setInputText(''); setTimeout(()=>setMessages(p=>[...p,{sender:'bot',text:'Ich habe das verstanden, aber als Prototyp antworte ich nur simuliert.'}]),1000); }} className="relative">
-                                            <input value={inputText} onChange={e=>setInputText(e.target.value)} className="w-full bg-slate-100 border-0 rounded-xl px-5 py-4 pr-16 text-slate-800 focus:ring-2 focus:ring-[#003B6E] outline-none transition" placeholder="Schreib eine Nachricht an Dexter..." />
-                                            <button className="absolute right-2 top-2 p-2 bg-[#003B6E] text-white rounded-lg hover:bg-blue-900 transition"><ArrowRight size={20} /></button>
+                                        <form onSubmit={handleChatSubmit} className="relative max-w-4xl mx-auto">
+                                            <input value={dexterInput} onChange={e=>setDexterInput(e.target.value)} className="w-full bg-slate-100 border-0 rounded-xl px-5 py-4 pr-16 text-slate-800 focus:ring-2 focus:ring-[#003B6E] outline-none transition placeholder:text-slate-400" placeholder="Schreib eine Nachricht an Dexter..." disabled={isTyping} />
+                                            <button type="submit" disabled={isTyping || !dexterInput.trim()} className="absolute right-2 top-2 p-2 bg-[#003B6E] text-white rounded-lg hover:bg-blue-900 transition disabled:opacity-50 disabled:cursor-not-allowed"><ArrowRight size={20} /></button>
                                         </form>
+                                        <div className="text-center mt-2">
+                                            <p className="text-[10px] text-slate-400">KI-generierte Inhalte können fehlerhaft sein. Bitte überprüfe wichtige Informationen.</p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* PLANNER STATS + LIST VIEW */}
-                            {activeTab === 'tasks' && activeTaskTab === 'planner' && (
-                                <div className="max-w-5xl mx-auto fade-in space-y-6 h-full flex flex-col">
+                            {/* ================= TASKS FULL VIEW ================= */}
+                            {activeTab === 'tasks' && (
+                                <div className="max-w-6xl mx-auto fade-in h-full flex flex-col space-y-6">
                                     
-                                    <div className="flex justify-between items-end">
-                                        <h2 className="text-2xl font-bold text-[#003B6E] flex items-center gap-2"><CheckCircle size={28} /> Planner Aufgaben (Team)</h2>
-                                        <a href="https://tasks.office.com/" target="_blank" className="text-sm font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur Planner App <ExternalLink size={14} /></a>
+                                    {/* Task Tabs Switcher */}
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setActiveTaskTab('planner')} className={`px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-sm ${activeTaskTab === 'planner' ? 'bg-[#003B6E] text-white ring-2 ring-offset-2 ring-[#003B6E]' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+                                            <CheckCircle size={18} /> Planner (Teams)
+                                        </button>
+                                        <button onClick={() => setActiveTaskTab('todo')} className={`px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-sm ${activeTaskTab === 'todo' ? 'bg-[#003B6E] text-white ring-2 ring-offset-2 ring-[#003B6E]' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+                                            <ListTodo size={18} /> To-Do (Privat)
+                                        </button>
                                     </div>
 
-                                    {/* Statistics Bar */}
-                                    <div className="grid grid-cols-3 gap-6">
-                                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Offene Aufgaben</p>
-                                                <p className="text-3xl font-bold text-slate-800">{plannerStats.total}</p>
+                                    {/* PLANNER CONTENT */}
+                                    {activeTaskTab === 'planner' && (
+                                        <div className="flex flex-col gap-6">
+                                            {/* Statistics Bar */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                                                    <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Offen</p><p className="text-3xl font-bold text-slate-800">{plannerStats.total}</p></div>
+                                                    <div className="p-3 bg-blue-50 rounded-full text-[#003B6E]"><CheckCircle size={24} /></div>
+                                                </div>
+                                                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                                                    <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Wichtig</p><p className={`text-3xl font-bold ${plannerStats.high > 0 ? 'text-[#E4002B]' : 'text-slate-800'}`}>{plannerStats.high}</p></div>
+                                                    <div className={`p-3 rounded-full ${plannerStats.high > 0 ? 'bg-red-50 text-[#E4002B]' : 'bg-slate-50 text-slate-400'}`}><AlertTriangle size={24} /></div>
+                                                </div>
+                                                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                                                    <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Überfällig</p><p className={`text-3xl font-bold ${plannerStats.overdue > 0 ? 'text-[#E4002B]' : 'text-slate-800'}`}>{plannerStats.overdue}</p></div>
+                                                    <div className={`p-3 rounded-full ${plannerStats.overdue > 0 ? 'bg-red-50 text-[#E4002B]' : 'bg-slate-50 text-slate-400'}`}><Clock size={24} /></div>
+                                                </div>
                                             </div>
-                                            <div className="p-3 bg-blue-50 rounded-full text-[#003B6E]"><CheckCircle size={24} /></div>
-                                        </div>
-                                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Hohe Priorität</p>
-                                                <p className={`text-3xl font-bold ${plannerStats.high > 0 ? 'text-[#E4002B]' : 'text-slate-800'}`}>{plannerStats.high}</p>
-                                            </div>
-                                            <div className={`p-3 rounded-full ${plannerStats.high > 0 ? 'bg-red-50 text-[#E4002B]' : 'bg-slate-50 text-slate-400'}`}><AlertTriangle size={24} /></div>
-                                        </div>
-                                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Überfällig</p>
-                                                <p className={`text-3xl font-bold ${plannerStats.overdue > 0 ? 'text-[#E4002B]' : 'text-slate-800'}`}>{plannerStats.overdue}</p>
-                                            </div>
-                                            <div className={`p-3 rounded-full ${plannerStats.overdue > 0 ? 'bg-red-50 text-[#E4002B]' : 'bg-slate-50 text-slate-400'}`}><Clock size={24} /></div>
-                                        </div>
-                                    </div>
 
-                                    {/* Planner Task List */}
-                                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 flex-1 overflow-y-auto">
-                                        {isTasksLoading ? <Loader2 className="animate-spin mx-auto text-slate-400" /> : (
-                                            <div className="space-y-2">
-                                                {plannerTasks.length === 0 ? <p className="text-slate-400">Keine Aufgaben.</p> : plannerTasks.map(task => (
-                                                    <div key={task.id} className="p-4 rounded-lg border border-slate-100 hover:border-[#003B6E] transition bg-white hover:shadow-md group flex items-center justify-between">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className={`w-1 h-12 rounded-full ${task.priority < 5 ? 'bg-[#E4002B]' : 'bg-slate-200'}`}></div>
-                                                            <div>
-                                                                <h4 className="font-bold text-slate-800 text-lg">{task.title}</h4>
-                                                                <div className="flex items-center gap-3 mt-1">
-                                                                    <span className="text-xs bg-blue-50 text-[#003B6E] px-2 py-0.5 rounded font-bold uppercase tracking-wide">{task.planName}</span>
-                                                                    {task.dueDateTime && <span className={`text-xs flex items-center gap-1 font-medium ${new Date(task.dueDateTime) < new Date() ? 'text-[#E4002B]' : 'text-slate-500'}`}><Clock size={12}/> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
+                                            {/* List */}
+                                            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100">
+                                                {isLoadingData ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-[#003B6E]" size={32} /></div> : (
+                                                    <div className="space-y-3">
+                                                        {plannerTasks.length === 0 ? <p className="text-slate-400">Keine Aufgaben gefunden.</p> : plannerTasks.map(task => (
+                                                            <div key={task.id} className="p-4 rounded-lg border border-slate-100 hover:border-[#003B6E] transition bg-white hover:shadow-md group flex items-center justify-between">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className={`w-1 h-12 rounded-full ${task.priority < 5 ? 'bg-[#E4002B]' : 'bg-slate-200'}`}></div>
+                                                                    <div>
+                                                                        <h4 className="font-bold text-slate-800 text-lg">{task.title}</h4>
+                                                                        <div className="flex items-center gap-3 mt-1">
+                                                                            <span className="text-xs bg-blue-50 text-[#003B6E] px-2 py-0.5 rounded font-bold uppercase tracking-wide">{task.planName}</span>
+                                                                            {task.dueDateTime && <span className={`text-xs flex items-center gap-1 font-medium ${new Date(task.dueDateTime) < new Date() ? 'text-[#E4002B]' : 'text-slate-500'}`}><Clock size={12}/> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
+                                                                <a href="https://tasks.office.com" target="_blank" className="text-slate-300 hover:text-[#003B6E] p-2"><ExternalLink size={20} /></a>
                                                             </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* TO-DO CONTENT */}
+                                    {activeTaskTab === 'todo' && (
+                                        <div className="bg-white p-8 rounded-xl shadow border border-slate-200 h-full flex flex-col">
+                                            <div className="flex justify-between items-center mb-8">
+                                                <h2 className="text-xl font-bold text-[#003B6E]">Meine Fokus-Liste</h2>
+                                                <span className="text-sm text-slate-400">Synchronisiert mit Microsoft To Do</span>
+                                            </div>
+                                            
+                                            <form onSubmit={handleAddTodo} className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8 shadow-inner">
+                                                <div className="flex gap-3 mb-4">
+                                                    <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Was möchtest du erledigen?" className="flex-1 p-4 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-[#003B6E] text-lg" />
+                                                    <button className="bg-[#003B6E] text-white px-6 rounded-lg font-bold hover:bg-blue-900 transition shadow-lg"><Plus size={24} /></button>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input type="checkbox" id="blocker-big" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} className="w-5 h-5 text-[#003B6E] rounded focus:ring-[#003B6E]" />
+                                                    <label htmlFor="blocker-big" className="text-slate-700 font-medium cursor-pointer select-none">Als <span className="text-[#E4002B] font-bold">Blocker</span> in Outlook eintragen</label>
+                                                </div>
+                                            </form>
+
+                                            <div className="space-y-3 overflow-y-auto flex-1">
+                                                {todos.map(t => (
+                                                    <div key={t.id} onClick={() => toggleTodo(t.id)} className={`flex justify-between p-4 border rounded-xl items-center transition shadow-sm cursor-pointer group/item ${t.done ? 'bg-slate-50 border-slate-100 opacity-50' : 'bg-white border-slate-200 hover:border-[#003B6E] hover:shadow-md'}`}>
+                                                        <div className="flex items-center gap-4 flex-1">
+                                                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300 group-hover/item:border-[#003B6E]'} ${t.done ? 'bg-slate-200 border-slate-200' : 'bg-white'}`}>
+                                                                {t.done ? <CheckSquare size={16} className="text-slate-500" /> : (t.isBlocker && <div className="w-3 h-3 bg-[#E4002B] rounded-full"></div>)}
+                                                            </div>
+                                                            <span className={`text-lg font-medium break-words flex-1 pr-4 transition-all ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.text}</span>
+                                                            {t.isBlocker && !t.done && <span className="text-[#E4002B] bg-red-50 px-2 py-1 rounded text-xs font-bold tracking-wider border border-red-100">BLOCKER</span>}
                                                         </div>
-                                                        <button className="text-slate-300 hover:text-[#003B6E] p-2"><ArrowRight size={20} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); setTodos(todos.filter(x=>x.id !== t.id)); }} className="text-slate-300 hover:text-[#E4002B] p-2 transition"><Trash2 size={20}/></button>
                                                     </div>
                                                 ))}
                                             </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ================= CALENDAR FULL VIEW ================= */}
+                            {activeTab === 'calendar' && (
+                                <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-[80vh] fade-in">
+                                    <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+                                        <h2 className="text-2xl font-bold text-[#003B6E] flex items-center gap-3"><Calendar size={28} /> Dein Kalender</h2>
+                                        <a href="https://outlook.office.com/calendar/" target="_blank" className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition flex items-center gap-2">
+                                            In Outlook öffnen <ExternalLink size={14} />
+                                        </a>
+                                    </div>
+                                    <div className="p-8 space-y-8 flex-1">
+                                        {Object.keys(groupedEvents).length === 0 ? (
+                                            <div className="text-center py-20">
+                                                <Calendar className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                                                <p className="text-slate-500">Keine Termine in den nächsten 14 Tagen.</p>
+                                            </div>
+                                        ) : (
+                                            Object.keys(groupedEvents).map(key => (
+                                                <div key={key}>
+                                                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">{key} <span className="text-slate-300 font-normal ml-2">{groupedEvents[key].dateFull}</span></h3>
+                                                    <div className="space-y-4">
+                                                        {groupedEvents[key].events.map(evt => (
+                                                            <div key={evt.id} className="flex gap-6 group">
+                                                                <div className="w-16 text-right pt-2">
+                                                                    <span className="block font-bold text-slate-800 text-lg">{new Date(evt.start.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                                                    <span className="block text-xs text-slate-400 font-medium">{new Date(evt.end.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                                                </div>
+                                                                <div className="flex-1 bg-white border border-slate-100 p-5 rounded-xl hover:border-[#003B6E] hover:shadow-md transition relative overflow-hidden">
+                                                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#003B6E]"></div>
+                                                                    <h4 className="font-bold text-slate-800 text-lg mb-2">{evt.subject}</h4>
+                                                                    <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                                                                        {evt.location?.displayName && <span className="flex items-center gap-1.5"><MapPin size={14} className="text-[#003B6E]" /> {evt.location.displayName}</span>}
+                                                                        <span className="flex items-center gap-1.5"><Clock size={14} className="text-[#003B6E]" /> {Math.round((new Date(evt.end.dateTime) - new Date(evt.start.dateTime))/60000)} Minuten</span>
+                                                                        {evt.organizer && <span className="flex items-center gap-1.5"><Users size={14} className="text-[#003B6E]" /> {evt.organizer.emailAddress.name}</span>}
+                                                                    </div>
+                                                                    {evt.isOnlineMeeting && <div className="mt-3 inline-block bg-blue-50 text-[#003B6E] text-xs font-bold px-2 py-1 rounded">Teams Meeting</div>}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))
                                         )}
                                     </div>
                                 </div>
                             )}
 
-                            {/* FULL TO-DO LIST */}
-                            {activeTab === 'todo' && (
-                                <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200 h-full fade-in flex flex-col">
-                                    <div className="flex justify-between items-center mb-8">
-                                        <h2 className="text-2xl font-bold text-[#003B6E] flex items-center gap-2"><ListTodo size={28} /> Meine Fokus-Liste (Privat)</h2>
-                                        <a href="https://to-do.office.com/" target="_blank" className="text-sm font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur To-Do App <ExternalLink size={14} /></a>
-                                    </div>
-                                    
-                                    <form onSubmit={handleAddTodo} className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8 shadow-inner">
-                                        <div className="flex gap-3 mb-4">
-                                            <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Was möchtest du erledigen?" className="flex-1 p-4 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-[#003B6E] text-lg" />
-                                            <button className="bg-[#003B6E] text-white px-6 rounded-lg font-bold hover:bg-blue-900 transition shadow-lg"><Plus size={24} /></button>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <input type="checkbox" id="blocker-big" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} className="w-5 h-5 text-[#003B6E] rounded focus:ring-[#003B6E]" />
-                                            <label htmlFor="blocker-big" className="text-slate-700 font-medium cursor-pointer select-none">Als <span className="text-[#E4002B] font-bold">Blocker</span> in Outlook eintragen</label>
-                                        </div>
-                                    </form>
-
-                                    <div className="space-y-3 overflow-y-auto flex-1 pr-2">
-                                        {todos.map(t => (
-                                            <div key={t.id} onClick={() => toggleTodo(t.id)} className={`flex justify-between p-4 border rounded-xl items-center transition shadow-sm cursor-pointer group/item ${t.done ? 'bg-slate-50 border-slate-100 opacity-50' : 'bg-white border-slate-200 hover:border-[#003B6E] hover:shadow-md'}`}>
-                                                <div className="flex items-center gap-4 flex-1">
-                                                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300 group-hover/item:border-[#003B6E]'} ${t.done ? 'bg-slate-200 border-slate-200' : 'bg-white'}`}>
-                                                        {t.done ? <CheckSquare size={16} className="text-slate-500" /> : (t.isBlocker && <div className="w-3 h-3 bg-[#E4002B] rounded-full"></div>)}
-                                                    </div>
-                                                    <span className={`text-lg font-medium break-words flex-1 pr-4 transition-all ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.text}</span>
-                                                    {t.isBlocker && !t.done && <span className="text-[#E4002B] bg-red-50 px-2 py-1 rounded text-xs font-bold tracking-wider border border-red-100">BLOCKER</span>}
-                                                </div>
-                                                <button onClick={(e) => { e.stopPropagation(); setTodos(todos.filter(x=>x.id !== t.id)); }} className="text-slate-300 hover:text-[#E4002B] p-2 transition"><Trash2 size={20}/></button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
+                            </div>
                         </div>
                     </main>
                 </div>

@@ -20,6 +20,21 @@
     <style>
         body { font-family: 'Segoe UI', sans-serif; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
+        /* Smooth fade in for elements */
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* GTAI Colors Custom Classes */
+        .bg-gtai-blue { background-color: #003B6E; }
+        .text-gtai-blue { color: #003B6E; }
+        .border-gtai-blue { border-color: #003B6E; }
+        
+        .bg-gtai-red { background-color: #E4002B; }
+        .text-gtai-red { color: #E4002B; }
+        .border-gtai-red { border-color: #E4002B; }
+        
+        .hover\:bg-gtai-red:hover { background-color: #c20024; }
+        .hover\:bg-gtai-blue:hover { background-color: #002a50; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen overflow-hidden">
@@ -47,7 +62,6 @@
             cache: { cacheLocation: "sessionStorage" }
         };
 
-        // Wir fordern echte Schreibrechte an!
         const loginRequest = {
             scopes: ["User.Read", "Calendars.ReadWrite", "Tasks.ReadWrite", "Sites.Read.All"] 
         };
@@ -58,7 +72,6 @@
         }
 
         // --- HELPER: GRAPH API CALLER ---
-        // Diese Funktion ist der Schlüssel. Sie holt das Token und macht den Call.
         async function callMsGraph(instance, accounts, endpoint, method = "GET", body = null) {
             const request = {
                 ...loginRequest,
@@ -82,7 +95,6 @@
                 
                 if (!graphResponse.ok) throw new Error(`Graph Error: ${graphResponse.statusText}`);
                 
-                // Manche Calls (z.B. Photo) geben Blob zurück, andere JSON
                 const contentType = graphResponse.headers.get("content-type");
                 if (contentType && contentType.indexOf("application/json") !== -1) {
                     return await graphResponse.json();
@@ -110,8 +122,17 @@
             const [plannerTasks, setPlannerTasks] = useState([]);
             const [isLoadingData, setIsLoadingData] = useState(false);
 
-            // Lokale States (To-Do, Chat etc.)
-            const [todos, setTodos] = useState([]);
+            // Intranet News State
+            const [intranetNews, setIntranetNews] = useState([
+                { id: 1, title: "Neue Reiserichtlinien ab 2025: Pauschalen angepasst", summary: "Wichtige Information für alle Reisenden nach Asien und USA.", date: "Heute, 08:30", category: "HR" },
+                { id: 2, title: "Wartungsarbeiten am SharePoint-Server", summary: "Eingeschränkte Verfügbarkeit am kommenden Samstag.", date: "Gestern", category: "IT" },
+                { id: 3, title: "Rückblick: Hannover Messe Erfolg", summary: "Besucherrekord am GTAI Stand. Vielen Dank an das Team!", date: "28.10.", category: "News" }
+            ]);
+
+            // Lokale States
+            const [todos, setTodos] = useState([
+                { id: 1, text: "Reisekostenabrechnung China fertigstellen", isBlocker: false, done: false },
+            ]);
             const [newTodoText, setNewTodoText] = useState('');
             const [isBlocker, setIsBlocker] = useState(false);
             const [messages, setMessages] = useState([{ sender: 'bot', text: "Hallo! Ich bin Dexter. Ich habe Zugriff auf deine echten M365 Daten." }]);
@@ -137,7 +158,7 @@
                     
                     setUserProfile({ ...profile, photoUrl });
 
-                    // 2. Kalender laden (Nächste 7 Tage)
+                    // 2. Kalender laden
                     const start = new Date().toISOString();
                     const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
                     const calData = await callMsGraph(instance, accounts, `/me/calendarview?startDateTime=${start}&endDateTime=${end}&$top=10&$orderby=start/dateTime`);
@@ -156,8 +177,8 @@
 
             // --- REAL ACTION: WRITE TO CALENDAR ---
             const createCalendarBlocker = async (title) => {
-                const start = new Date(); // Jetzt
-                const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 Stunde
+                const start = new Date(); 
+                const end = new Date(start.getTime() + 60 * 60 * 1000); 
 
                 const event = {
                     subject: `🛡️ FOKUS: ${title}`,
@@ -168,7 +189,6 @@
 
                 try {
                     await callMsGraph(instance, accounts, "/me/events", "POST", event);
-                    alert("Blocker erfolgreich in Outlook erstellt!");
                     loadAllData(); // Refresh Calendar
                 } catch (e) {
                     alert("Fehler beim Erstellen des Blockers: " + e.message);
@@ -195,14 +215,14 @@
             if (!isAuthenticated) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-100">
-                        <div className="bg-white p-8 rounded-xl shadow-2xl text-center max-w-md w-full">
-                            <Globe className="w-16 h-16 text-[#003366] mx-auto mb-4" />
-                            <h1 className="text-2xl font-bold text-[#003366] mb-2">GTAI Hub (Live Data)</h1>
+                        <div className="bg-white p-10 rounded-xl shadow-2xl text-center max-w-md w-full border-t-4 border-gtai-red">
+                            <Globe className="w-16 h-16 text-gtai-blue mx-auto mb-4" />
+                            <h1 className="text-2xl font-bold text-gtai-blue mb-2">GTAI Hub (Live Data)</h1>
                             <p className="text-sm text-gray-500 mb-6">Verbindet sich mit Ihrem echten Microsoft 365 Account.</p>
-                            <div className="bg-blue-50 text-blue-800 text-xs p-2 rounded border border-blue-200 mb-4 break-all">
+                            <div className="bg-blue-50 text-blue-800 text-xs p-2 rounded border border-blue-200 mb-6 break-all">
                                 Redirect URI: {window.location.origin}
                             </div>
-                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-[#003366] text-white p-3 rounded hover:bg-blue-900 transition flex justify-center items-center gap-2">
+                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-gtai-blue text-white p-3 rounded hover:bg-gtai-red transition flex justify-center items-center gap-2 font-medium shadow-lg">
                                 <span>🔒</span> Mit Microsoft anmelden
                             </button>
                         </div>
@@ -214,10 +234,10 @@
             return (
                 <div className="flex h-screen bg-slate-50 overflow-hidden">
                     {/* SIDEBAR */}
-                    <aside className={`bg-[#003366] text-white flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
-                        <div className="p-4 flex items-center justify-between border-b border-blue-800/50">
-                            {isSidebarOpen && <span className="font-bold flex items-center gap-2"><Globe /> GTAI HUB</span>}
-                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1 hover:bg-blue-800 rounded"><Menu size={20} /></button>
+                    <aside className={`bg-gtai-blue text-white flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} z-20 shadow-2xl`}>
+                        <div className="p-4 flex items-center justify-between border-b border-white/10">
+                            {isSidebarOpen && <span className="font-bold flex items-center gap-2 tracking-wide"><Globe className="text-white" /> GTAI HUB</span>}
+                            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1 hover:bg-white/10 rounded text-white"><Menu size={20} /></button>
                         </div>
                         <nav className="flex-1 py-4 space-y-1 px-2">
                             {[
@@ -226,96 +246,194 @@
                                 { id: 'calendar', icon: <Calendar />, label: 'Kalender' },
                                 { id: 'copilot', icon: <Bot />, label: 'Dexter Agent' }
                             ].map(item => (
-                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded transition ${activeTab === item.id ? 'bg-blue-500' : 'hover:bg-blue-800/50'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded transition-all duration-200 ${activeTab === item.id ? 'bg-gtai-red shadow-md font-medium translate-x-1' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
                                     {item.icon} {isSidebarOpen && <span>{item.label}</span>}
                                 </button>
                             ))}
                         </nav>
-                        <div className="p-4 border-t border-blue-800/50 flex items-center gap-3">
+                        <div className="p-4 border-t border-white/10 flex items-center gap-3 bg-black/10">
                             {userProfile.photoUrl ? (
-                                <img src={userProfile.photoUrl} className="w-10 h-10 rounded-full border-2 border-white/20" />
+                                <img src={userProfile.photoUrl} className="w-10 h-10 rounded-full border-2 border-white/30" />
                             ) : (
-                                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold">{getFirstName().substring(0,2)}</div>
+                                <div className="w-10 h-10 rounded-full bg-gtai-red flex items-center justify-center font-bold text-white border-2 border-white/20">{getFirstName().substring(0,2)}</div>
                             )}
-                            {isSidebarOpen && <div className="overflow-hidden"><p className="text-sm font-bold truncate">{getFirstName()}</p><button onClick={() => instance.logoutPopup()} className="text-xs text-blue-300 hover:text-white flex items-center gap-1"><LogOut size={10} /> Logout</button></div>}
+                            {isSidebarOpen && <div className="overflow-hidden"><p className="text-sm font-bold truncate text-white">{getFirstName()}</p><button onClick={() => instance.logoutPopup()} className="text-xs text-blue-200 hover:text-white flex items-center gap-1 mt-0.5"><LogOut size={12} /> Logout</button></div>}
                         </div>
                     </aside>
 
                     {/* MAIN */}
-                    <main className="flex-1 flex flex-col h-full">
-                        <header className="h-16 bg-white border-b flex items-center justify-between px-6">
-                            <h2 className="text-xl font-bold capitalize text-slate-800">{activeTab}</h2>
+                    <main className="flex-1 flex flex-col h-full bg-slate-50">
+                        <header className="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm z-10">
+                            <h2 className="text-xl font-bold capitalize text-gtai-blue flex items-center gap-2">
+                                {activeTab === 'dashboard' && <LayoutDashboard size={22} />}
+                                {activeTab === 'tasks' && <CheckCircle size={22} />}
+                                {activeTab === 'calendar' && <Calendar size={22} />}
+                                {activeTab === 'copilot' && <Bot size={22} />}
+                                {activeTab}
+                            </h2>
                             <div className="flex items-center gap-4">
-                                <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 ${isLoadingData && 'animate-spin text-blue-600'}`}><RefreshCw size={20}/></button>
-                                <span className="text-sm text-gray-500">{userProfile.jobTitle || "Mitarbeiter"}</span>
+                                <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 ${isLoadingData && 'animate-spin text-gtai-blue'}`}><RefreshCw size={20}/></button>
+                                <span className="text-sm text-gray-500 hidden md:inline border-l pl-4">{userProfile.jobTitle || "Mitarbeiter"}</span>
                             </div>
                         </header>
 
                         <div className="flex-1 overflow-auto p-6">
                             {activeTab === 'dashboard' && (
-                                <div className="max-w-6xl mx-auto space-y-6">
-                                    <div className="bg-gradient-to-r from-[#003366] to-[#00509e] rounded-2xl p-8 text-white relative overflow-hidden shadow-lg">
-                                        <div className="relative z-10">
+                                <div className="max-w-7xl mx-auto space-y-6 fade-in">
+                                    {/* HERO BANNER - DEXTER */}
+                                    <div className="bg-gradient-to-r from-gtai-blue to-[#00509e] rounded-2xl p-8 text-white relative overflow-hidden shadow-lg border-b-4 border-gtai-red">
+                                        <div className="relative z-10 max-w-2xl">
                                             <h1 className="text-3xl font-bold mb-2">Hallo {getFirstName()}!</h1>
-                                            <p className="mb-6 opacity-90">Hier sind Ihre echten Daten aus der Microsoft Cloud.</p>
-                                            <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); }} className="flex gap-2 max-w-md">
-                                                <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="flex-1 px-4 py-2 rounded text-slate-900 outline-none" />
-                                                <button className="bg-white/20 hover:bg-white/30 px-4 rounded font-bold">Go</button>
+                                            <p className="mb-6 opacity-90 text-blue-100">Was kann ich heute für dich tun?</p>
+                                            <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); }} className="flex gap-2 shadow-xl rounded-lg">
+                                                <div className="relative flex-1">
+                                                    <Bot className="absolute left-3 top-3.5 text-gtai-blue" size={20} />
+                                                    <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-10 pr-4 py-3.5 rounded-l-lg text-slate-900 outline-none" />
+                                                </div>
+                                                <button className="bg-gtai-red text-white px-6 rounded-r-lg font-bold hover:bg-[#c20024] transition flex items-center gap-2">Go <ArrowRight size={18} /></button>
                                             </form>
                                         </div>
-                                        <Bot size={150} className="absolute -right-5 -bottom-5 opacity-10 rotate-12" />
+                                        <Bot size={180} className="absolute -right-8 -bottom-8 opacity-10 rotate-12" />
                                     </div>
 
-                                    {/* LIVE DATA GRID */}
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                        {/* CALENDAR PREVIEW */}
-                                        <div className="bg-white p-6 rounded-xl shadow border border-slate-200">
-                                            <div className="flex justify-between mb-4">
-                                                <h3 className="font-bold flex gap-2"><Calendar className="text-[#003366]" /> Nächste Termine</h3>
-                                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Live aus Outlook</span>
+                                    {/* 2-COLUMN GRID LAYOUT */}
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                        
+                                        {/* 1. KALENDER CARD */}
+                                        <div onClick={() => setActiveTab('calendar')} className="bg-white p-0 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer flex flex-col h-full group overflow-hidden">
+                                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                <h3 className="font-bold flex gap-2 text-lg items-center text-slate-800 group-hover:text-gtai-blue transition"><Calendar className="text-gtai-blue" /> Nächste Termine</h3>
+                                                <span className="text-xs bg-white border border-green-200 text-green-700 px-2 py-1 rounded shadow-sm">Live Outlook</span>
                                             </div>
-                                            <div className="space-y-3">
-                                                {calendarEvents.length === 0 ? <p className="text-gray-400 text-sm">Keine Termine gefunden.</p> : 
-                                                 calendarEvents.slice(0, 3).map(evt => (
-                                                    <div key={evt.id} className="flex gap-3 text-sm p-2 hover:bg-slate-50 rounded">
-                                                        <div className="font-bold text-slate-500 w-12 text-right">
+                                            <div className="p-5 space-y-4 flex-1">
+                                                {calendarEvents.length === 0 ? <p className="text-gray-400 text-sm italic">Keine Termine für heute gefunden.</p> : 
+                                                 calendarEvents.slice(0, 4).map(evt => (
+                                                    <div key={evt.id} className="flex gap-4 items-start pb-3 border-b last:border-0 border-slate-50 group-hover:border-slate-100 transition">
+                                                        <div className="font-bold text-slate-500 w-14 text-right pt-0.5 shrink-0 text-sm font-mono">
                                                             {new Date(evt.start.dateTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                         </div>
-                                                        <div className="border-l-2 border-blue-500 pl-3">
-                                                            <div className="font-semibold truncate">{evt.subject}</div>
-                                                            <div className="text-xs text-gray-500">{evt.location?.displayName || "Online"}</div>
+                                                        <div className="border-l-4 border-gtai-blue pl-3 flex-1 min-w-0">
+                                                            <div className="font-semibold text-slate-800 text-sm leading-tight break-words">{evt.subject}</div>
+                                                            <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5">
+                                                                <Video size={12} className="text-gtai-red" /> {evt.location?.displayName || "Online Meeting"}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
 
-                                        {/* PLANNER PREVIEW */}
-                                        <div className="bg-white p-6 rounded-xl shadow border border-slate-200">
-                                            <div className="flex justify-between mb-4">
-                                                <h3 className="font-bold flex gap-2"><CheckCircle className="text-[#003366]" /> Meine Aufgaben</h3>
-                                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Live aus Planner</span>
+                                        {/* 2. PLANNER (TEAM) CARD */}
+                                        <div onClick={() => setActiveTab('tasks')} className="bg-white p-0 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer flex flex-col h-full group overflow-hidden">
+                                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                <h3 className="font-bold flex gap-2 text-lg items-center text-slate-800 group-hover:text-gtai-blue transition"><CheckCircle className="text-gtai-blue" /> Team-Aufgaben</h3>
+                                                <span className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded shadow-sm">Live Planner</span>
                                             </div>
-                                            <div className="space-y-3">
-                                                {plannerTasks.length === 0 ? <p className="text-gray-400 text-sm">Keine offenen Planner-Aufgaben.</p> : 
-                                                 plannerTasks.slice(0, 3).map(task => (
-                                                    <div key={task.id} className="flex justify-between items-center p-2 border-b last:border-0">
-                                                        <span className="text-sm truncate">{task.title}</span>
-                                                        {task.dueDateTime && <span className="text-xs text-red-500 flex gap-1"><Clock size={12}/> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
+                                            <div className="p-5 space-y-3 flex-1">
+                                                {plannerTasks.length === 0 ? <p className="text-gray-400 text-sm italic">Keine zugewiesenen Aufgaben im Planner.</p> : 
+                                                 plannerTasks.slice(0, 4).map(task => (
+                                                    <div key={task.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex justify-between items-start gap-3 hover:bg-white hover:border-blue-200 transition hover:shadow-sm">
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className="text-sm font-medium text-slate-800 break-words block mb-1">{task.title}</span>
+                                                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Projekt Alpha</span>
+                                                        </div>
+                                                        {task.dueDateTime && <span className="text-xs font-bold text-gtai-red bg-red-50 px-2 py-1 rounded shrink-0 flex items-center gap-1"><Clock size={10}/> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
+
+                                        {/* 3. TO-DO (PRIVAT) CARD */}
+                                        <div onClick={() => setActiveTab('tasks')} className="bg-white p-0 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer flex flex-col h-full group overflow-hidden">
+                                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                <h3 className="font-bold flex gap-2 text-lg items-center text-slate-800 group-hover:text-gtai-blue transition"><ListTodo className="text-gtai-blue" /> Meine Fokus-Liste</h3>
+                                                <span className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded shadow-sm">Privat</span>
+                                            </div>
+                                            <ul className="p-5 space-y-2 flex-1">
+                                                {todos.map(t => (
+                                                    <li key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition">
+                                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.isBlocker ? 'border-gtai-red' : 'border-slate-300'}`}>
+                                                            {t.isBlocker && <div className="w-2.5 h-2.5 bg-gtai-red rounded-full"></div>}
+                                                        </div>
+                                                        <span className="text-sm text-slate-700 break-words flex-1 leading-snug">{t.text}</span>
+                                                    </li>
+                                                ))}
+                                                {todos.length === 0 && <li className="text-gray-400 text-sm italic">Liste leer.</li>}
+                                            </ul>
+                                            <div className="px-5 pb-5 pt-2 border-t border-slate-50">
+                                                <span className="text-xs text-gtai-blue font-bold flex items-center gap-1 group-hover:underline"><Plus size={14} /> Aufgabe hinzufügen</span>
+                                            </div>
+                                        </div>
+
+                                        {/* 4. INTRANET NEWS CARD */}
+                                        <div className="bg-white p-0 rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                <h3 className="font-bold flex gap-2 text-lg items-center text-slate-800"><Globe className="text-gtai-blue" /> Intranet News</h3>
+                                                <a href="https://gtai.sharepoint.com/sites/GTAI-Intranet" target="_blank" className="text-xs text-gtai-blue hover:underline flex items-center gap-1 font-medium">Zum Intranet <ExternalLink size={12} /></a>
+                                            </div>
+                                            <div className="p-5 space-y-4">
+                                                {intranetNews.map(news => (
+                                                    <a key={news.id} href="#" className="block group/news relative pl-4">
+                                                        <div className="absolute left-0 top-1 bottom-1 w-1 bg-gtai-blue/20 group-hover/news:bg-gtai-red transition rounded-full"></div>
+                                                        <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                                            <span>{news.date}</span>
+                                                            <span className="uppercase font-bold tracking-wide text-gtai-blue text-[10px] bg-blue-50 px-1.5 py-0.5 rounded">{news.category}</span>
+                                                        </div>
+                                                        <h4 className="font-bold text-slate-800 text-sm group-hover/news:text-gtai-blue transition break-words">{news.title}</h4>
+                                                        <p className="text-xs text-slate-500 mt-1 line-clamp-1">{news.summary}</p>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+
                                     </div>
-                                    
-                                    {/* INTRANET NEWS MOCK (Da Site-ID spezifisch ist) */}
-                                    <div className="bg-white p-6 rounded-xl shadow border border-slate-200">
-                                        <h3 className="font-bold mb-4 flex gap-2"><Globe className="text-[#003366]" /> GTAI Intranet News</h3>
-                                        <div className="grid md:grid-cols-3 gap-4">
-                                            {["Neue Reiserichtlinien 2025", "IT-Wartung am Wochenende", "Erfolg auf der Hannover Messe"].map((news, i) => (
-                                                <div key={i} className="border p-3 rounded hover:bg-slate-50 cursor-pointer">
-                                                    <span className="text-[10px] uppercase text-blue-600 font-bold">News</span>
-                                                    <p className="font-medium text-sm mt-1">{news}</p>
+                                </div>
+                            )}
+
+                            {/* TASKS VIEW (Merged Planner + ToDo) */}
+                            {activeTab === 'tasks' && (
+                                <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 fade-in">
+                                    {/* Left: Planner */}
+                                    <div className="bg-white p-8 rounded-xl shadow border border-slate-200 h-full">
+                                        <h2 className="text-xl font-bold mb-6 flex gap-2 items-center text-gtai-blue"><CheckCircle /> Planner (Team)</h2>
+                                        {isTasksLoading ? <Loader2 className="animate-spin mx-auto text-slate-400" /> : (
+                                            <div className="space-y-4">
+                                                {plannerTasks.length === 0 ? <p className="text-slate-400">Keine Aufgaben.</p> : plannerTasks.map(task => (
+                                                    <div key={task.id} className="p-4 rounded-lg border border-slate-100 hover:border-blue-200 transition bg-slate-50 hover:bg-white">
+                                                        <div className="flex justify-between items-start gap-4">
+                                                            <div className="flex-1">
+                                                                <h4 className="font-semibold text-slate-800 break-words">{task.title}</h4>
+                                                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded mt-2 inline-block">Projekt Alpha</span>
+                                                            </div>
+                                                            {task.priority < 5 && <AlertTriangle size={18} className="text-gtai-red shrink-0" title="Hohe Priorität" />}
+                                                        </div>
+                                                        {task.dueDateTime && <div className="mt-3 flex items-center gap-1 text-xs text-slate-500"><Clock size={12}/> Fällig: {new Date(task.dueDateTime).toLocaleDateString()}</div>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Right: Personal To-Do */}
+                                    <div className="bg-white p-8 rounded-xl shadow border border-slate-200 h-full">
+                                        <h2 className="text-xl font-bold mb-6 flex gap-2 items-center text-gtai-blue"><ListTodo /> Privat (Fokus)</h2>
+                                        
+                                        <form onSubmit={handleAddTodo} className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 shadow-inner">
+                                            <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Neue Aufgabe..." className="w-full p-2 mb-3 rounded border border-slate-300 outline-none focus:ring-2 focus:ring-gtai-blue" />
+                                            <div className="flex justify-between items-center">
+                                                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                                    <input type="checkbox" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} className="rounded text-gtai-blue focus:ring-gtai-blue" />
+                                                    <span className={isBlocker ? "font-bold text-gtai-red" : "text-slate-600"}>Als Blocker eintragen</span>
+                                                </label>
+                                                <button className="bg-gtai-blue text-white px-3 py-1.5 rounded text-sm hover:bg-gtai-red transition shadow-sm flex items-center gap-1"><Plus size={16} /> Add</button>
+                                            </div>
+                                        </form>
+
+                                        <div className="space-y-2">
+                                            {todos.map(t => (
+                                                <div key={t.id} className="flex justify-between p-3 border rounded-lg items-center bg-white hover:border-slate-300 transition shadow-sm">
+                                                    <span className="text-sm font-medium break-words flex-1 pr-4 text-slate-700">{t.text} {t.isBlocker && <span className="text-gtai-red ml-1 inline-flex items-center bg-red-50 px-1.5 py-0.5 rounded text-[10px]" title="Kalender Blocker">🛡️ BLOCKER</span>}</span>
+                                                    <button onClick={() => setTodos(todos.filter(x=>x.id !== t.id))} className="text-slate-300 hover:text-gtai-red transition"><Trash2 size={16}/></button>
                                                 </div>
                                             ))}
                                         </div>
@@ -323,33 +441,15 @@
                                 </div>
                             )}
 
-                            {activeTab === 'tasks' && (
-                                <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border">
-                                    <h2 className="text-xl font-bold mb-6 flex gap-2"><ListTodo /> Persönliche To-Do & Blocker</h2>
-                                    <form onSubmit={handleAddTodo} className="bg-slate-50 p-4 rounded mb-6 flex gap-2 items-center">
-                                        <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Aufgabe..." className="flex-1 p-2 rounded border" />
-                                        <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} /> Als Blocker in Outlook eintragen</label>
-                                        <button className="bg-[#003366] text-white px-4 py-2 rounded hover:bg-blue-900"><Plus size={18}/></button>
-                                    </form>
-                                    <div className="space-y-2">
-                                        {todos.map(t => (
-                                            <div key={t.id} className="flex justify-between p-3 border rounded items-center">
-                                                <span>{t.text} {t.isBlocker && "🛡️"}</span>
-                                                <button onClick={() => setTodos(todos.filter(x=>x.id !== t.id))} className="text-red-500"><Trash2 size={16}/></button>
-                                            </div>
-                                        ))}
-                                        {todos.length === 0 && <p className="text-gray-400 text-center text-sm">Liste leer.</p>}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Weitere Tabs hier gekürzt für Übersichtlichkeit */}
+                            {/* Weitere Tabs hier gekürzt für Übersichtlichkeit - Logik bleibt erhalten */}
                             {activeTab === 'copilot' && (
-                                <div className="h-full flex flex-col bg-white rounded-xl shadow border">
-                                    <div className="flex-1 p-6 overflow-y-auto">
+                                <div className="h-full flex flex-col bg-white rounded-xl shadow border border-slate-200 overflow-hidden fade-in">
+                                    <div className="p-4 bg-slate-50 border-b flex gap-3 items-center"><Bot className="text-gtai-blue" /><h3 className="font-bold text-gtai-blue">Dexter (GTAI Agent)</h3></div>
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
                                         {messages.map((m, i) => (
-                                            <div key={i} className={`mb-4 p-3 rounded-lg max-w-[80%] ${m.sender === 'user' ? 'ml-auto bg-blue-100 text-blue-900' : 'bg-slate-100'}`}>
-                                                <strong>{m.sender === 'user' ? getFirstName() : 'Dexter'}:</strong> <br/> {m.text}
+                                            <div key={i} className={`mb-4 p-4 rounded-xl max-w-[80%] shadow-sm ${m.sender === 'user' ? 'ml-auto bg-gtai-blue text-white rounded-tr-none' : 'bg-white border border-slate-200 rounded-tl-none'}`}>
+                                                <strong className="text-xs opacity-70 block mb-1">{m.sender === 'user' ? getFirstName() : 'Dexter'}</strong>
+                                                {m.text}
                                             </div>
                                         ))}
                                     </div>

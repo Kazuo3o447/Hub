@@ -12,7 +12,7 @@
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
         "lucide-react": "https://esm.sh/lucide-react@0.292.0",
         "@azure/msal-browser": "https://esm.sh/@azure/msal-browser@3.10.0",
-        "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.0.12?exte<rnal=react,react-dom,@azure/msal-browser"
+        "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.0.12?external=react,react-dom,@azure/msal-browser"
       }
     }
     </script>
@@ -47,6 +47,27 @@
             CheckSquare, Loader2, RefreshCw, Briefcase, Bot, ArrowRight,
             ExternalLink, FileText, MapPin, Video, Users, Clock, AlertTriangle, CalendarClock, Database, Link as LinkIcon, Info
         } from 'lucide-react';
+
+        // --- ERROR BOUNDARY (Fixes White Screen Mystery) ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            componentDidCatch(error, errorInfo) { console.error("Uncaught error:", error, errorInfo); }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="p-8 text-center">
+                            <h1 className="text-xl font-bold text-red-600 mb-4">Ein Fehler ist aufgetreten</h1>
+                            <pre className="bg-slate-100 p-4 rounded text-left text-xs overflow-auto text-slate-700 border border-slate-300">
+                                {this.state.error?.toString()}
+                            </pre>
+                            <button onClick={() => window.location.reload()} className="mt-6 bg-[#003B6E] text-white px-4 py-2 rounded">Neu laden</button>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
 
         // --- CONFIG ---
         const msalConfig = {
@@ -165,7 +186,6 @@
                         if (evtDate.getTime() === today.getTime()) label = 'Heute';
                         else if (evtDate.getTime() === tomorrow.getTime()) label = 'Morgen';
                         
-                        // Extract Teams Link safely
                         const teamsLink = evt.onlineMeeting?.joinUrl || evt.onlineMeetingUrl || null;
 
                         return { ...evt, dateObj: { date: d.toLocaleDateString('de-DE'), label: label }, teamsLink };
@@ -228,7 +248,6 @@
                 setDexterInput('');
                 setIsTyping(true);
 
-                // Simulation Copilot Response
                 setTimeout(() => {
                     let response = "Ich habe das verstanden. Da ich aktuell im Demo-Modus bin, kann ich keine echten Aktionen ausführen, aber ich würde jetzt im Backend nach '" + userMsg + "' suchen.";
                     if (userMsg.toLowerCase().includes('termin')) response = "Ich kann gerne einen Termin für dich einstellen. Wann passt es dir am besten?";
@@ -244,14 +263,23 @@
             // --- LOGIN SCREEN ---
             if (!isAuthenticated) {
                 return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-                        <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md w-full border-t-4 border-[#003B6E]">
-                            <div className="mb-6 flex justify-center"><div className="bg-slate-50 p-4 rounded-full"><Globe className="w-12 h-12 text-[#003B6E]" /></div></div>
-                            <h1 className="text-2xl font-bold text-slate-800 mb-2">GTAI Mitarbeiter Hub</h1>
-                            <p className="text-sm text-slate-500 mb-8">Bitte melden Sie sich mit Ihrem GTAI-Konto an.</p>
-                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-[#003B6E] text-white py-3 px-4 rounded-lg hover:bg-blue-900 transition font-medium flex justify-center items-center gap-2 shadow-lg shadow-blue-900/10">
-                                Mit Microsoft anmelden
+                    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+                        <div className="bg-white p-12 rounded-lg shadow-xl text-center max-w-sm w-full border border-slate-100">
+                            <h1 className="text-6xl font-extrabold text-[#001A44] mb-8 tracking-tighter">GTAI</h1>
+                            
+                            <h2 className="text-xl text-slate-700 mb-8 font-medium">GTAI-Hub Login</h2>
+                            
+                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-[#2F2F2F] text-white py-3 px-4 rounded-none hover:bg-black transition font-semibold flex justify-center items-center gap-3">
+                                <div className="grid grid-cols-2 gap-0.5">
+                                    <div className="w-2.5 h-2.5 bg-[#F25022]"></div>
+                                    <div className="w-2.5 h-2.5 bg-[#7FBA00]"></div>
+                                    <div className="w-2.5 h-2.5 bg-[#00A4EF]"></div>
+                                    <div className="w-2.5 h-2.5 bg-[#FFB900]"></div>
+                                </div>
+                                Anmelden
                             </button>
+                            
+                            <p className="text-xs text-slate-400 mt-8">Du brauchst ein aktives GTAI-Konto.</p>
                         </div>
                     </div>
                 );
@@ -741,7 +769,13 @@
         };
 
         const root = createRoot(document.getElementById('root'));
-        root.render(<MsalProvider instance={msalInstance}><MainContent /></MsalProvider>);
+        root.render(
+            <ErrorBoundary>
+                <MsalProvider instance={msalInstance}>
+                    <MainContent />
+                </MsalProvider>
+            </ErrorBoundary>
+        );
     </script>
 </body>
 </html>

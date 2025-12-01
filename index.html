@@ -119,8 +119,6 @@
             const [dexterInput, setDexterInput] = useState('');
             const [isTyping, setIsTyping] = useState(false);
 
-            const gtaiLogoUrl = "https://www.gtai.de/resource/blob/164/c70415786210000/gtai-logo-data.svg";
-
             // --- EFFECTS ---
             useEffect(() => {
                 if (isAuthenticated && accounts[0]) loadAllData();
@@ -159,7 +157,11 @@
                         let label = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
                         if (evtDate.getTime() === today.getTime()) label = 'Heute';
                         else if (evtDate.getTime() === tomorrow.getTime()) label = 'Morgen';
-                        return { ...evt, dateObj: { date: d.toLocaleDateString('de-DE'), label: label } };
+                        
+                        // Extract Teams Link safely
+                        const teamsLink = evt.onlineMeeting?.joinUrl || evt.onlineMeetingUrl || null;
+
+                        return { ...evt, dateObj: { date: d.toLocaleDateString('de-DE'), label: label }, teamsLink };
                     });
                     setCalendarEvents(enrichedEvents);
 
@@ -346,7 +348,7 @@
                     <main className="flex-1 flex flex-col h-full bg-[#f3f4f6]">
                         <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10 shrink-0">
                             <h2 className="text-xl font-bold text-slate-800 capitalize flex items-center gap-2">
-                                {activeTab === 'copilot' ? <img src={gtaiLogoUrl} alt="Dexter" className="w-8 h-auto" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'planner' ? <Users className="text-[#003B6E]" /> : activeTab === 'todo' ? <ListTodo className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : null}
+                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'planner' ? <Users className="text-[#003B6E]" /> : activeTab === 'todo' ? <ListTodo className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : null}
                                 {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'planner' ? 'Planner (Teamaufgaben)' : activeTab === 'todo' ? 'Meine To-Dos' : activeTab === 'calendar' ? 'Mein Kalender' : 'Dashboard'}
                             </h2>
                             <div className="flex items-center gap-4">
@@ -378,15 +380,15 @@
                                             
                                             <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); setTimeout(()=> { setMessages(p=>[...p, {sender:'bot', text: 'Wie kann ich helfen?'}])}, 1000); }} className="flex gap-0 shadow-xl rounded-xl overflow-hidden w-full max-w-xl">
                                                 <div className="relative flex-1 bg-white">
-                                                    <img src={gtaiLogoUrl} alt="Dexter" className="absolute left-4 top-3.5 w-6 h-auto brightness-0 opacity-40" />
-                                                    <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-14 pr-4 py-3 text-slate-800 outline-none" />
+                                                    <Bot className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                                                    <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-12 pr-4 py-3 text-slate-800 outline-none" />
                                                 </div>
                                                 <button className="bg-[#E4002B] text-white px-6 font-bold hover:bg-[#c20024] transition flex items-center gap-2">
                                                     Go <ArrowRight size={18} />
                                                 </button>
                                             </form>
                                         </div>
-                                        <img src={gtaiLogoUrl} alt="GTAI" className="absolute -right-10 -bottom-10 w-72 h-auto brightness-0 invert opacity-10 rotate-12" />
+                                        <Bot size={220} className="absolute -right-10 -bottom-10 text-white/10 rotate-12" />
                                     </div>
 
                                     {/* CONTENT GRID */}
@@ -413,6 +415,13 @@
                                                                     <span className="flex items-center gap-1"><Clock size={12} /> {Math.round((new Date(evt.end.dateTime) - new Date(evt.start.dateTime))/60000)} min</span>
                                                                     <span className="flex items-center gap-1"><MapPin size={12} /> {evt.location?.displayName || "Online"}</span>
                                                                 </div>
+                                                                {evt.teamsLink && (
+                                                                    <div className="mt-2">
+                                                                        <a href={evt.teamsLink} target="_blank" className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-[#5b5fc7] hover:bg-[#4f52b2] px-2 py-1 rounded transition">
+                                                                            <Video size={10} /> Jetzt teilnehmen
+                                                                        </a>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -498,7 +507,7 @@
                                 <div className="max-w-5xl mx-auto h-[85vh] flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden fade-in">
                                     <div className="p-6 border-b border-slate-100 flex items-center gap-4 bg-slate-50/80 backdrop-blur">
                                         <div className="w-12 h-12 bg-[#003B6E] rounded-full flex items-center justify-center shadow-lg text-white ring-4 ring-blue-50">
-                                            <img src={gtaiLogoUrl} alt="Dexter" className="w-8 h-auto brightness-0 invert" />
+                                            <Bot size={24} />
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-xl text-slate-800">Dexter</h3>
@@ -652,7 +661,15 @@
                                                                         <span className="flex items-center gap-1.5"><Clock size={14} className="text-[#003B6E]" /> {Math.round((new Date(evt.end.dateTime) - new Date(evt.start.dateTime))/60000)} Minuten</span>
                                                                         {evt.organizer && <span className="flex items-center gap-1.5"><Users size={14} className="text-[#003B6E]" /> {evt.organizer.emailAddress.name}</span>}
                                                                     </div>
-                                                                    {evt.isOnlineMeeting && <div className="mt-3 inline-block bg-blue-50 text-[#003B6E] text-xs font-bold px-2 py-1 rounded">Teams Meeting</div>}
+                                                                    
+                                                                    <div className="mt-3 flex gap-2">
+                                                                        {evt.isOnlineMeeting && <div className="inline-block bg-blue-50 text-[#003B6E] text-xs font-bold px-2 py-1 rounded">Teams Meeting</div>}
+                                                                        {evt.teamsLink && (
+                                                                            <a href={evt.teamsLink} target="_blank" className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-[#5b5fc7] hover:bg-[#4f52b2] px-2 py-1 rounded transition">
+                                                                                <Video size={10} /> Jetzt teilnehmen
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         ))}

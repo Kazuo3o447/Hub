@@ -67,9 +67,6 @@
         };
 
         const msalInstance = new PublicClientApplication(msalConfig);
-        if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
-            msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
-        }
 
         // --- HELPER: GRAPH API CALLER ---
         async function callMsGraph(instance, accounts, endpoint, method = "GET", body = null) {
@@ -115,6 +112,7 @@
             const isAuthenticated = useIsAuthenticated();
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [loginError, setLoginError] = useState(null);
             
             // Echte Daten States
             const [userProfile, setUserProfile] = useState({ displayName: "", jobTitle: "", mail: "", photoUrl: null });
@@ -209,6 +207,19 @@
                 setIsBlocker(false);
             };
 
+            const handleLogin = async () => {
+                try {
+                    setLoginError(null);
+                    await instance.loginPopup(loginRequest);
+                } catch (e) {
+                    console.warn("Login unterbrochen:", e);
+                    // Ignoriere "User Cancelled" Fehler, zeige aber andere an
+                    if (e.errorCode !== "user_cancelled") {
+                        setLoginError(e.message || "Anmeldung fehlgeschlagen.");
+                    }
+                }
+            };
+
             const getFirstName = () => userProfile.displayName ? userProfile.displayName.split(',')[1]?.trim() || userProfile.displayName.split(' ')[0] : "Gast";
 
             // --- RENDER LOGIN ---
@@ -222,7 +233,14 @@
                             <div className="bg-blue-50 text-blue-800 text-xs p-2 rounded border border-blue-200 mb-6 break-all">
                                 Redirect URI: {window.location.origin}
                             </div>
-                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-gtai-blue text-white p-3 rounded hover:bg-gtai-red transition flex justify-center items-center gap-2 font-medium shadow-lg">
+                            
+                            {loginError && (
+                                <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded border border-red-100 text-left">
+                                    <strong>Fehler:</strong> {loginError}
+                                </div>
+                            )}
+
+                            <button onClick={handleLogin} className="w-full bg-gtai-blue text-white p-3 rounded hover:bg-gtai-red transition flex justify-center items-center gap-2 font-medium shadow-lg">
                                 <span>🔒</span> Mit Microsoft anmelden
                             </button>
                         </div>
@@ -461,8 +479,26 @@
             );
         };
 
-        const root = createRoot(document.getElementById('root'));
-        root.render(<MsalProvider instance={msalInstance}><MainContent /></MsalProvider>);
+        const startApp = async () => {
+            try {
+                await msalInstance.initialize();
+                
+                if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
+                    msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
+                }
+
+                const root = createRoot(document.getElementById('root'));
+                root.render(
+                    <MsalProvider instance={msalInstance}>
+                        <MainContent />
+                    </MsalProvider>
+                );
+            } catch (error) {
+                console.error("Initialization error:", error);
+            }
+        };
+
+        startApp();
     </script>
 </body>
 </html>

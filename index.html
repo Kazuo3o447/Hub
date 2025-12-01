@@ -39,7 +39,7 @@
             LayoutDashboard, LogOut, Globe, CheckCircle, Menu, X, Calendar, 
             MessageSquare, Zap, Newspaper, Bell, ListTodo, Plus, Trash2, 
             CheckSquare, Loader2, RefreshCw, Briefcase, Bot, ArrowRight,
-            ExternalLink, FileText, MapPin, Video, Users, Clock, AlertTriangle, CalendarClock, Database, Link as LinkIcon
+            ExternalLink, FileText, MapPin, Video, Users, Clock, AlertTriangle, CalendarClock, Database, Link as LinkIcon, Info
         } from 'lucide-react';
 
         // --- CONFIG ---
@@ -151,9 +151,13 @@
             const handleAddTodo = (e) => {
                 e.preventDefault();
                 if (!newTodoText.trim()) return;
-                setTodos([...todos, { id: Date.now(), text: newTodoText, isBlocker }]);
+                setTodos([...todos, { id: Date.now(), text: newTodoText, isBlocker, done: false }]);
                 if (isBlocker) createCalendarBlocker(newTodoText);
                 setNewTodoText(''); setIsBlocker(false);
+            };
+            
+            const toggleTodo = (id) => {
+                setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
             };
 
             const getFirstName = () => userProfile.displayName ? userProfile.displayName.split(',')[1]?.trim() || userProfile.displayName.split(' ')[0] : "Gast";
@@ -173,6 +177,13 @@
                     </div>
                 );
             }
+            
+            // --- PLANNER STATS CALCULATION ---
+            const plannerStats = {
+                total: plannerTasks.length,
+                high: plannerTasks.filter(t => t.priority < 5).length, // Graph API: 0-4 is High/Urgent
+                overdue: plannerTasks.filter(t => t.dueDateTime && new Date(t.dueDateTime) < new Date()).length
+            };
 
             return (
                 <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -197,7 +208,7 @@
                             ))}
 
                             <div className="pt-6">
-                                <p className={`px-3 text-xs font-bold text-blue-300 uppercase tracking-wider mb-2 ${!isSidebarOpen && 'text-center'}`}>{isSidebarOpen ? 'Links' : '•'}</p>
+                                <p className={`px-3 text-xs font-bold text-blue-300 uppercase tracking-wider mb-2 ${!isSidebarOpen && 'text-center'}`}>{isSidebarOpen ? 'GTAI-Apps' : '•'}</p>
                                 <a href="https://thankful-moss-0fc20ef03.3.azurestaticapps.net" target="_blank" className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 text-blue-100 transition-colors no-underline">
                                     <Database size={20} /> {isSidebarOpen && <span>Comres | Internal</span>}
                                 </a>
@@ -237,7 +248,12 @@
                                     <div className="bg-[#003B6E] rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                                         <div className="relative z-10 max-w-3xl">
                                             <h1 className="text-3xl font-bold mb-3">Hallo {getFirstName()}!</h1>
-                                            <p className="text-blue-100 mb-6 text-lg">Dein persönlicher Hub für heute. Termine checken oder Dexter fragen?</p>
+                                            <div className="flex items-start gap-3 mb-6 p-3 bg-white/10 rounded-lg border border-white/20 backdrop-blur-sm">
+                                                <Info className="shrink-0 text-blue-200 mt-0.5" size={20} />
+                                                <p className="text-blue-100 text-sm leading-relaxed">
+                                                    Das ist eine <strong>BETA</strong>. Bei Fragen oder Anregungen melde dich bei <strong>Sandra aus dem GTAI-KI Team</strong>.
+                                                </p>
+                                            </div>
                                             
                                             <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); }} className="flex gap-0 shadow-xl rounded-xl overflow-hidden w-full max-w-xl">
                                                 <div className="relative flex-1 bg-white">
@@ -339,11 +355,11 @@
                                                         </div>
                                                         <ul className="space-y-2 flex-1">
                                                             {todos.map(t => (
-                                                                <li key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition">
-                                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300'}`}>
-                                                                        {t.isBlocker && <div className="w-2.5 h-2.5 bg-[#E4002B] rounded-full"></div>}
+                                                                <li key={t.id} onClick={() => toggleTodo(t.id)} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition cursor-pointer group/todo">
+                                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300 group-hover/todo:border-[#003B6E]'} ${t.done ? 'bg-slate-200 border-slate-200' : 'bg-white'}`}>
+                                                                        {t.done ? <CheckSquare size={12} className="text-slate-500" /> : (t.isBlocker && <div className="w-2.5 h-2.5 bg-[#E4002B] rounded-full"></div>)}
                                                                     </div>
-                                                                    <span className="text-sm text-slate-700 break-words flex-1 leading-snug">{t.text}</span>
+                                                                    <span className={`text-sm break-words flex-1 leading-snug transition-all ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.text}</span>
                                                                 </li>
                                                             ))}
                                                             {todos.length === 0 && <li className="text-gray-400 text-sm italic">Liste leer.</li>}
@@ -416,6 +432,86 @@
                                     </div>
                                 </div>
                             )}
+
+                            {/* PLANNER STATS + LIST VIEW */}
+                            {activeTab === 'tasks' && activeTaskTab === 'planner' && (
+                                <div className="max-w-5xl mx-auto fade-in space-y-6">
+                                    
+                                    {/* Planner Statistics Bar */}
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-6 justify-between items-center">
+                                        <div>
+                                            <h2 className="text-xl font-bold text-[#003B6E] flex items-center gap-2"><CheckCircle size={24} /> Planner (Team)</h2>
+                                            <p className="text-sm text-slate-500">Übersicht deiner zugewiesenen Aufgaben</p>
+                                        </div>
+                                        <div className="flex gap-8">
+                                            <div className="text-center">
+                                                <p className="text-2xl font-bold text-slate-800">{plannerStats.total}</p>
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Offen</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className={`text-2xl font-bold ${plannerStats.high > 0 ? 'text-[#E4002B]' : 'text-slate-800'}`}>{plannerStats.high}</p>
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Priorität</p>
+                                            </div>
+                                            <div className="text-center border-l pl-8 border-slate-100">
+                                                <p className={`text-2xl font-bold ${plannerStats.overdue > 0 ? 'text-[#E4002B]' : 'text-slate-800'}`}>{plannerStats.overdue}</p>
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Überfällig</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Planner Task List */}
+                                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 h-full">
+                                        {isTasksLoading ? <Loader2 className="animate-spin mx-auto text-slate-400" /> : (
+                                            <div className="space-y-4">
+                                                {plannerTasks.length === 0 ? <p className="text-slate-400">Keine Aufgaben.</p> : plannerTasks.map(task => (
+                                                    <div key={task.id} className="p-4 rounded-lg border border-slate-100 hover:border-blue-200 transition bg-slate-50 hover:bg-white group">
+                                                        <div className="flex justify-between items-start gap-4">
+                                                            <div className="flex-1">
+                                                                <h4 className="font-semibold text-slate-800 break-words group-hover:text-[#003B6E] transition">{task.title}</h4>
+                                                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded mt-2 inline-block font-medium">{task.planName}</span>
+                                                            </div>
+                                                            {task.priority < 5 && <div className="bg-[#E4002B]/10 text-[#E4002B] px-2 py-1 rounded text-xs font-bold flex items-center gap-1"><AlertTriangle size={12} /> Wichtig</div>}
+                                                        </div>
+                                                        {task.dueDateTime && <div className="mt-3 flex items-center gap-1 text-xs text-slate-500"><Clock size={12}/> Fällig: {new Date(task.dueDateTime).toLocaleDateString()}</div>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Only showing Planner in tab logic above for simplicity in this merged view, 
+                                normally you would implement To-Do specific view similarly if tab logic requires it */}
+                            {activeTab === 'tasks' && activeTaskTab !== 'planner' && (
+                                <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200 h-full fade-in">
+                                    <h2 className="text-xl font-bold mb-6 flex gap-2 items-center text-[#003B6E]"><ListTodo /> Privat (Fokus)</h2>
+                                    <form onSubmit={handleAddTodo} className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 shadow-inner">
+                                        <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Neue Aufgabe..." className="w-full p-2 mb-3 rounded border border-slate-300 outline-none focus:ring-2 focus:ring-[#003B6E]" />
+                                        <div className="flex justify-between items-center">
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                                <input type="checkbox" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} className="rounded text-[#003B6E] focus:ring-[#003B6E]" />
+                                                <span className={isBlocker ? "font-bold text-[#E4002B]" : "text-slate-600"}>Als Blocker eintragen</span>
+                                            </label>
+                                            <button className="bg-[#003B6E] text-white px-3 py-1.5 rounded text-sm hover:bg-[#E4002B] transition shadow-sm flex items-center gap-1"><Plus size={16} /> Add</button>
+                                        </div>
+                                    </form>
+                                    <div className="space-y-2">
+                                        {todos.map(t => (
+                                            <div key={t.id} onClick={() => toggleTodo(t.id)} className="flex justify-between p-3 border rounded-lg items-center bg-white hover:border-slate-300 transition shadow-sm cursor-pointer group/item">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300 group-hover/item:border-[#003B6E]'} ${t.done ? 'bg-slate-200 border-slate-200' : 'bg-white'}`}>
+                                                        {t.done ? <CheckSquare size={12} className="text-slate-500" /> : (t.isBlocker && <div className="w-2.5 h-2.5 bg-[#E4002B] rounded-full"></div>)}
+                                                    </div>
+                                                    <span className={`text-sm font-medium break-words flex-1 pr-4 text-slate-700 ${t.done && 'line-through text-slate-400'}`}>{t.text} {t.isBlocker && !t.done && <span className="text-[#E4002B] ml-1 inline-flex items-center bg-red-50 px-1.5 py-0.5 rounded text-[10px]" title="Kalender Blocker">🛡️ BLOCKER</span>}</span>
+                                                </div>
+                                                <button onClick={(e) => { e.stopPropagation(); setTodos(todos.filter(x=>x.id !== t.id)); }} className="text-slate-300 hover:text-[#E4002B] transition"><Trash2 size={16}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     </main>
                 </div>

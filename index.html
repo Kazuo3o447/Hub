@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTAI Mitarbeiter Hub (Live Auth)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- WICHTIG: Import Map für MSAL (Authentifizierung) -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.292.0",
+        "@azure/msal-browser": "https://esm.sh/@azure/msal-browser@3.10.0",
+        "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.0.12?external=react,react-dom,@azure/msal-browser"
+      }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { font-family: 'Segoe UI', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { PublicClientApplication } from "@azure/msal-browser";
+        import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react";
+        import { 
+            MessageSquare, LayoutDashboard, LogOut, Search, Globe, TrendingUp, Bell, CheckCircle, Menu, X, ExternalLink, Loader2, Clock, AlertTriangle, Calendar, MapPin, Video, RefreshCw, Users, Briefcase, Calculator, Languages, Zap, FileText, ListTodo, Plus, Trash2, CheckSquare, CalendarClock, Newspaper
+        } from 'lucide-react';
+
+        // --- 1. KONFIGURATION (ECHTE DATEN) ---
+        const msalConfig = {
+            auth: {
+                clientId: "1bcff9d8-08fd-4807-9483-eeeab557d612",
+                authority: "https://login.microsoftonline.com/7e77266e-8abb-4947-be1a-ce8f3bd5cb49",
+                redirectUri: window.location.origin, // Muss im Azure Portal exakt so registriert sein!
+            },
+            cache: {
+                cacheLocation: "sessionStorage",
+                storeAuthStateInCookie: false,
+            }
+        };
+
+        const loginRequest = {
+            scopes: ["User.Read", "Calendars.ReadWrite", "Tasks.ReadWrite"]
+        };
+
+        // Instanz erstellen
+        const msalInstance = new PublicClientApplication(msalConfig);
+        
+        // Initialisierung abwarten (Workaround für Single File CDN)
+        if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
+            msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
+        }
+
+        // --- MOCK DATEN (Fallback) ---
+        const RAG_KNOWLEDGE = {
+            default: "Ich bin Ihr GTAI Copilot. Ich habe Zugriff auf interne Marktanalysen und HR-Richtlinien.",
+            reset: "Nutzen Sie den Entra ID Self-Service Button im Menü, um Ihr Passwort zurückzusetzen.",
+        };
+
+        // --- HAUPTKOMPONENTE ---
+        const MainContent = () => {
+            // Echte Hooks
+            const { instance, accounts } = useMsal();
+            const isAuthenticated = useIsAuthenticated();
+            
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            
+            // User Data State (wird nach Login gefüllt)
+            const [userData, setUserData] = useState({ name: "Gast", department: "Nicht angemeldet" });
+
+            // App States
+            const [messages, setMessages] = useState([{ id: 1, sender: 'bot', text: RAG_KNOWLEDGE.default, time: '09:00' }]);
+            const [inputText, setInputText] = useState('');
+            const [isTyping, setIsTyping] = useState(false);
+            const messagesEndRef = useRef(null);
+            
+            // Data States
+            const [calendarEvents, setCalendarEvents] = useState([]);
+            const [isCalendarLoading, setIsCalendarLoading] = useState(false);
+            const [plannerTasks, setPlannerTasks] = useState(null);
+            const [isTasksLoading, setIsTasksLoading] = useState(false);
+            const todayStr = new Date().toISOString().split('T')[0];
+            const [todos, setTodos] = useState([
+                { id: 1, text: "Reisekostenabrechnung China", isBlocker: false, done: false },
+                { id: 2, text: "Fokuszeit: Bericht fertigstellen", isBlocker: true, blockerDate: todayStr, blockerTime: '14:00', done: false }
+            ]);
+            const [newTodoText, setNewTodoText] = useState('');
+            const [isNewTodoBlocker, setIsNewTodoBlocker] = useState(false);
+            const [newTodoDate, setNewTodoDate] = useState(todayStr);
+            const [newTodoTime, setNewTodoTime] = useState('09:00');
+            const [briefingCompany, setBriefingCompany] = useState('');
+            const [briefingResult, setBriefingResult] = useState(null);
+            const [isBriefingLoading, setIsBriefingLoading] = useState(false);
+            const [marketQuery, setMarketQuery] = useState('');
+            const [marketResults, setMarketResults] = useState([]);
+            const [isSearching, setIsSearching] = useState(false);
+            const [isRefreshing, setIsRefreshing] = useState(false);
+
+            // --- EFFECT: USER DATEN LADEN NACH LOGIN ---
+            useEffect(() => {
+                if (isAuthenticated && accounts[0]) {
+                    // Hier holen wir die echten Daten aus dem ID-Token
+                    setUserData({
+                        name: accounts[0].name || "Mitarbeiter",
+                        department: accounts[0].username || "GTAI"
+                    });
+                    // Initialen Daten-Mock laden
+                    handleRefreshData();
+                }
+            }, [isAuthenticated, accounts]);
+
+            // --- LOGIN / LOGOUT ---
+            const handleLogin = async () => {
+                try {
+                    await instance.loginPopup(loginRequest);
+                } catch (e) {
+                    console.error("Login fehlgeschlagen:", e);
+                    alert("Login fehlgeschlagen: " + e.message);
+                }
+            };
+
+            const handleLogout = () => {
+                instance.logoutPopup();
+            };
+
+            // --- DATA LOADING (MOCKS, ABER BEREIT FÜR API) ---
+            const handleRefreshData = async () => {
+                if (isRefreshing) return;
+                setIsRefreshing(true);
+                
+                // HINWEIS: Hier würde man jetzt das echte Access Token holen:
+                // const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
+                // const accessToken = tokenResponse.accessToken;
+                // fetch('https://graph.microsoft.com/v1.0/me/calendarview...', { headers: { Authorization: `Bearer ${accessToken}` } })
+
+                // Wir nutzen weiterhin Mocks für die Demo-Daten, damit die UI voll aussieht
+                fetchPlannerTasksMock();
+                fetchCalendarEventsMock();
+                
+                setTimeout(() => setIsRefreshing(false), 1000);
+            };
+
+            const fetchPlannerTasksMock = () => {
+                setIsTasksLoading(true);
+                setTimeout(() => {
+                    setPlannerTasks({
+                        count: 5, items: [
+                            { id: 1, title: 'Länderbericht Frankreich', due: 'Heute', priority: 'Hoch', project: 'Europa Export' },
+                            { id: 2, title: 'Meeting Ref. 302', due: 'Morgen', priority: 'Normal', project: 'USA Invest' },
+                            { id: 3, title: 'Präsentationsfolien Indien', due: '05.11.', priority: 'Hoch', project: 'Asien Trade' },
+                            { id: 4, title: 'Reisekosten Q3', due: 'Überfällig', priority: 'Normal', project: 'HR' },
+                            { id: 5, title: 'Marktanalyse Check', due: '10.11.', priority: 'Niedrig', project: 'IT' },
+                        ]
+                    });
+                    setIsTasksLoading(false);
+                }, 800);
+            };
+
+            const fetchCalendarEventsMock = () => {
+                setIsCalendarLoading(true);
+                setTimeout(() => {
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(today.getDate() + 1);
+                    const dateStr = (d) => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+                    const displayDate = (d, label) => ({ date: dateStr(d), label: label });
+
+                    const baseEvents = [
+                        { id: 101, subject: 'Daily Standup', dateObj: displayDate(today, 'Heute'), start: '09:30', end: '10:00', location: 'Teams', type: 'video', attendees: ['Team'], description: 'Update', isExternal: false },
+                        { id: 103, subject: 'Meeting SolarTech', dateObj: displayDate(tomorrow, 'Morgen'), start: '14:00', end: '15:00', location: 'Teams', type: 'video', attendees: ['Hr. Müller'], description: 'Erstgespräch', isExternal: true, companyContext: 'SolarTech Solutions' },
+                    ];
+
+                    const blockerEvents = todos.filter(t => t.isBlocker && !t.done).map(todo => {
+                        const d = todo.blockerDate ? new Date(todo.blockerDate) : today;
+                        let label = dateStr(d);
+                        if (label === dateStr(today)) label = 'Heute';
+                        else if (label === dateStr(tomorrow)) label = 'Morgen';
+                        const [h, m] = (todo.blockerTime || '12:00').split(':').map(Number);
+                        const endT = `${((h+1)%24).toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+                        return { id: `blocker-${todo.id}`, subject: `🛡️ Fokus: ${todo.text}`, dateObj: { date: dateStr(d), label }, start: todo.blockerTime, end: endT, location: 'Schreibtisch', type: 'physical', attendees: ['Ich'], description: 'Blocker', isExternal: false, isBlocker: true };
+                    });
+
+                    setCalendarEvents([...baseEvents, ...blockerEvents].sort((a,b) => a.start.localeCompare(b.start)));
+                    setIsCalendarLoading(false);
+                }, 800);
+            };
+
+            // --- UI HANDLERS (Kurzform) ---
+            const handleAddTodo = (e) => { e.preventDefault(); if(!newTodoText.trim()) return; const t = { id: Date.now(), text: newTodoText, isBlocker: isNewTodoBlocker, blockerDate: isNewTodoBlocker ? newTodoDate : null, blockerTime: isNewTodoBlocker ? newTodoTime : null, done: false }; setTodos([...todos, t]); setNewTodoText(''); if(t.isBlocker) handleRefreshData(); };
+            const toggleTodo = (id) => setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
+            const deleteTodo = (id) => setTodos(todos.filter(t => t.id !== id));
+            const handleSendMessage = (e) => { e.preventDefault(); if(!inputText.trim()) return; const m = { id: Date.now(), sender: 'user', text: inputText, time: 'Now' }; setMessages([...messages, m]); setInputText(''); setIsTyping(true); setTimeout(() => { setIsTyping(false); setMessages(p => [...p, { id: Date.now()+1, sender: 'bot', text: RAG_KNOWLEDGE.default, time: 'Now' }]); }, 1000); };
+            const generateBriefing = () => { if(!briefingCompany.trim()) return; setIsBriefingLoading(true); setTimeout(() => { setBriefingResult({ company: briefingCompany, summary: "Führender Anbieter...", latestNews: ["News 1", "News 2"], internalNotes: "Kontakt auf Messe." }); setIsBriefingLoading(false); }, 1500); };
+            const handleMarketSearch = (e) => { e.preventDefault(); if(!marketQuery.trim()) return; setIsSearching(true); setTimeout(() => { setMarketResults([{title: 'Markttrend '+marketQuery, snippet: 'Wachstum erwartet.'}]); setIsSearching(false); }, 1000); };
+            useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
+
+            // --- CONDITIONAL RENDER ---
+            if (!isAuthenticated) {
+                return (
+                    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+                        <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-8 text-center">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4"><Globe className="text-[#003366] w-8 h-8" /></div>
+                            <h1 className="text-2xl font-bold text-[#003366] mb-2">GTAI Mitarbeiter Hub</h1>
+                            <p className="text-gray-500 mb-6">Bitte melden Sie sich mit Ihrem GTAI-Konto an.</p>
+                            <button onClick={handleLogin} className="w-full flex items-center justify-center gap-3 bg-slate-800 text-white p-4 rounded-lg shadow-md hover:bg-slate-900 transition">
+                                <div className="w-5 h-5 grid grid-cols-2 gap-0.5"><div className="bg-[#f25022]"></div><div className="bg-[#7fba00]"></div><div className="bg-[#00a4ef]"></div><div className="bg-[#ffb900]"></div></div>
+                                Mit Microsoft Entra ID anmelden
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- MAIN LAYOUT ---
+            const groupedEvents = calendarEvents.reduce((groups, event) => { const key = ['Heute', 'Morgen'].includes(event.dateObj.label) ? event.dateObj.label : event.dateObj.date; if (!groups[key]) groups[key] = { label: key, dateFull: event.dateObj.date, events: [] }; groups[key].events.push(event); return groups; }, {});
+
+            return (
+                <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
+                    <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#003366] text-white transition-all flex flex-col shadow-xl z-20`}>
+                        <div className="p-4 flex justify-between border-b border-blue-800/50">{isSidebarOpen && <div className="flex items-center gap-2 font-bold tracking-wide"><Globe />GTAI HUB</div>}<button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1 hover:bg-blue-800 rounded">{isSidebarOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
+                        <nav className="flex-1 py-6 space-y-2 px-2">
+                            {[{ id: 'dashboard', icon: <LayoutDashboard />, label: 'Dashboard' }, { id: 'todo', icon: <ListTodo />, label: 'Meine To-Dos' }, { id: 'tasks', icon: <CheckCircle />, label: 'Planner Aufgaben' }, { id: 'calendar', icon: <Calendar />, label: 'Kalender' }, { id: 'tools', icon: <Zap />, label: 'Smart Tools' }, { id: 'copilot', icon: <MessageSquare />, label: 'Copilot Agent' }, { id: 'market', icon: <Newspaper />, label: 'Markt-Ticker' }].map(item => (
+                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-blue-500 shadow-md' : 'hover:bg-blue-800/50'} ${!isSidebarOpen && 'justify-center'}`} title={item.label}>{React.cloneElement(item.icon, { size: 20 })} {isSidebarOpen && <span className="text-sm font-medium">{item.label}</span>}</button>
+                            ))}
+                        </nav>
+                        <div className="p-4 border-t border-blue-800/50">
+                            <div className={`flex items-center gap-3 ${!isSidebarOpen && 'justify-center'}`}><div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-sm font-bold shadow-inner text-white">{userData.name.substring(0, 2).toUpperCase()}</div>{isSidebarOpen && <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{userData.name}</p><p className="text-xs text-blue-300 truncate opacity-70">Online</p></div>}</div>
+                            {isSidebarOpen && <button onClick={handleLogout} className="mt-4 flex items-center gap-2 text-xs text-blue-300 hover:text-white w-full"><LogOut size={14} /> Abmelden</button>}
+                        </div>
+                    </aside>
+                    <main className="flex-1 flex flex-col h-full overflow-hidden">
+                        <header className="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm z-10"><h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab === 'todo' ? 'Meine Fokus-Liste' : activeTab}</h2><div className="flex items-center gap-4"><button onClick={handleRefreshData} disabled={isRefreshing} className={`p-2 hover:bg-slate-100 rounded-full ${isRefreshing && 'animate-spin text-blue-600'}`}><RefreshCw size={20} /></button><div className="h-8 w-px bg-slate-200 mx-2"></div><button className="p-2 text-slate-400 hover:bg-slate-100 rounded-full relative"><Bell size={20} /><span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span></button><div className="h-8 w-px bg-slate-200 mx-2"></div><div className="flex flex-col items-end"><span className="text-sm font-medium">{userData.name}</span><span className="text-xs text-slate-500">{userData.department}</span></div></div></header>
+                        <div className="flex-1 overflow-auto bg-slate-50 p-6">
+                            {/* DASHBOARD CONTENT */}
+                            {activeTab === 'dashboard' && (
+                                <div className="max-w-6xl mx-auto space-y-6">
+                                    <div className="bg-gradient-to-r from-[#003366] to-[#00509e] rounded-2xl p-8 text-white shadow-lg flex justify-between"><div><h1 className="text-3xl font-bold mb-2">Guten Morgen, {userData.name.split(' ')[0]}!</h1><p className="opacity-90">Hier ist Ihr Tagesüberblick.</p></div><Globe size={120} className="hidden md:block opacity-20" /></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div onClick={() => setActiveTab('tasks')} className="cursor-pointer bg-white p-6 rounded-xl shadow border hover:shadow-md transition"><p className="text-slate-500 text-sm font-medium">Offene Aufgaben</p><h3 className="text-3xl font-bold flex gap-2">{isTasksLoading ? <Loader2 className="animate-spin" /> : plannerTasks?.count}</h3></div>
+                                        <div onClick={() => setActiveTab('todo')} className="cursor-pointer bg-white p-6 rounded-xl shadow border hover:shadow-md transition"><p className="text-slate-500 text-sm font-medium">To-Dos</p><h3 className="text-3xl font-bold">{todos.filter(t => !t.done).length}</h3><p className="text-xs text-slate-400">{todos.filter(t => t.isBlocker && !t.done).length} Blocker</p></div>
+                                        <div onClick={() => setActiveTab('calendar')} className="cursor-pointer bg-white p-6 rounded-xl shadow border hover:shadow-md transition"><p className="text-slate-500 text-sm font-medium">Kalender</p><h3 className="text-3xl font-bold">{calendarEvents.length} Termine</h3></div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl shadow border"><h3 className="font-bold text-lg mb-4 flex items-center gap-2"><FileText size={20} className="text-slate-400" />Zuletzt bearbeitet</h3><ul className="space-y-3"><li className="flex justify-between p-3 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100"><div className="flex gap-3"><div className="w-8 h-8 bg-blue-100 rounded flex justify-center items-center text-blue-600 font-bold text-xs">DOC</div><div><p className="font-medium text-sm">China_Export_Analysis_Q3.docx</p><p className="text-xs text-slate-500">SharePoint • Vor 2 Stunden</p></div></div></li></ul></div>
+                                </div>
+                            )}
+                            {/* TO-DO CONTENT */}
+                            {activeTab === 'todo' && (
+                                <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border">
+                                    <h2 className="text-2xl font-bold mb-6 flex gap-2"><ListTodo className="text-[#003366]" />Meine Fokus-Liste</h2>
+                                    <form onSubmit={handleAddTodo} className="bg-slate-50 p-4 rounded-lg border mb-8"><div className="flex gap-3 mb-3"><input type="text" value={newTodoText} onChange={(e) => setNewTodoText(e.target.value)} placeholder="Neue Aufgabe..." className="flex-1 px-4 py-3 rounded-lg border focus:ring-2 focus:ring-[#003366] outline-none" /><button type="submit" disabled={!newTodoText.trim()} className="bg-[#003366] text-white px-6 rounded-lg font-medium hover:bg-blue-900 flex gap-2 items-center disabled:opacity-50"><Plus /> Hinzufügen</button></div><div className="flex flex-wrap gap-4 items-center"><label className="flex items-center gap-2 text-sm font-medium cursor-pointer"><input type="checkbox" checked={isNewTodoBlocker} onChange={(e) => setIsNewTodoBlocker(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Als Blocker markieren</label>{isNewTodoBlocker && (<div className="flex items-center gap-2 animate-in fade-in"><input type="date" value={newTodoDate} onChange={(e) => setNewTodoDate(e.target.value)} className="border rounded px-2 py-1 text-sm" /><input type="time" value={newTodoTime} onChange={(e) => setNewTodoTime(e.target.value)} className="border rounded px-2 py-1 text-sm" /></div>)}</div></form>
+                                    <div className="space-y-3">{todos.map(todo => (<div key={todo.id} className={`flex items-center justify-between p-4 rounded-lg border ${todo.done ? 'bg-slate-50 opacity-60' : 'bg-white'}`}><div className="flex items-center gap-4 flex-1"><button onClick={() => toggleTodo(todo.id)} className={todo.done ? 'text-green-600' : 'text-slate-300 hover:text-green-500'}><CheckSquare /></button><div><p className={`font-medium ${todo.done && 'line-through'}`}>{todo.text}</p>{todo.isBlocker && <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded inline-flex items-center gap-1 mt-1">🛡️ {todo.blockerTime} Blocker</span>}</div></div><button onClick={() => deleteTodo(todo.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={18} /></button></div>))}</div>
+                                </div>
+                            )}
+                            {/* CALENDAR CONTENT */}
+                            {activeTab === 'calendar' && (
+                                <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow border">
+                                    <h2 className="text-2xl font-bold mb-8 flex gap-2"><Calendar className="text-[#003366]" />Outlook Kalender</h2>
+                                    {isCalendarLoading ? <Loader2 className="animate-spin mx-auto" /> : (<div className="space-y-8">{Object.values(groupedEvents).map((group, i) => (<div key={i}><div className="flex items-center gap-4 mb-4"><div className="bg-slate-100 font-bold px-4 py-1 rounded-full text-sm">{group.label}</div><div className="h-px bg-slate-200 flex-1"></div></div><div className="space-y-4">{group.events.map(evt => (<div key={evt.id} className={`border rounded-xl p-5 flex flex-col md:flex-row gap-6 ${evt.isBlocker ? 'border-red-200 bg-red-50/30' : 'border-slate-100 hover:bg-slate-50'}`}><div className="min-w-[80px] text-center border-r pr-6"><div className={`text-xl font-bold ${evt.isBlocker ? 'text-red-600' : 'text-slate-800'}`}>{evt.start}</div><div className="text-xs text-slate-400">bis {evt.end}</div></div><div className="flex-1"><h3 className="font-bold text-slate-800 mb-1 flex items-center gap-2">{evt.isBlocker && "🛡️"} {evt.subject.replace('🛡️ Fokus: ', '')} {evt.isExternal && <span className="bg-indigo-100 text-indigo-700 text-[10px] px-2 rounded">Extern</span>}</h3><div className="flex gap-4 text-xs text-slate-500"><span className="flex gap-1"><MapPin size={14} />{evt.location}</span><span className="flex gap-1"><Users size={14} />{evt.attendees.length} Teiln.</span></div></div>{evt.isExternal && <button onClick={() => {setBriefingCompany(evt.companyContext || evt.subject); setActiveTab('tools');}} className="border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm hover:bg-indigo-50 flex items-center gap-2"><Zap size={14} /> Briefing</button>}</div>))}</div></div>))}</div>)}
+                                </div>
+                            )}
+                            {/* TOOLS, TASKS, COPILOT, MARKET - Using minimal render to save space for this single file view */}
+                            {activeTab === 'tools' && <div className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow border"><h2 className="text-xl font-bold mb-6 flex gap-2"><Briefcase className="text-indigo-600" />Meeting-Prep Generator</h2><div className="flex gap-2 mb-4"><input type="text" value={briefingCompany} onChange={(e) => setBriefingCompany(e.target.value)} placeholder="Firma eingeben..." className="flex-1 border rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-600" /><button onClick={generateBriefing} disabled={isBriefingLoading} className="bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:opacity-70">{isBriefingLoading ? <Loader2 className="animate-spin" /> : 'Generieren'}</button></div>{briefingResult && <div className="bg-slate-50 p-5 rounded-lg border space-y-4 animate-in fade-in"><div><span className="text-xs font-bold text-indigo-600 uppercase">Zusammenfassung</span><p className="text-sm mt-1">{briefingResult.summary}</p></div></div>}</div>}
+                            {activeTab === 'tasks' && <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow border"><div className="text-center mb-8"><h2 className="text-2xl font-bold flex justify-center gap-2"><CheckCircle className="text-[#003366]" /> Planner Aufgaben</h2></div>{isTasksLoading ? <Loader2 className="animate-spin mx-auto" /> : <div className="space-y-4">{plannerTasks?.items.map(task => <div key={task.id} className="flex justify-between items-center p-4 rounded-lg border hover:bg-slate-50"><div className="flex items-center gap-3 w-1/2">{task.priority === 'Hoch' && <AlertTriangle size={18} className="text-red-500" />}<span className="font-medium">{task.title}</span></div><div className="w-1/4 text-center"><span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{task.project}</span></div><div className="w-1/4 text-right flex justify-end gap-1"><Clock size={16} /><span className="text-sm">{task.due}</span></div></div>)}</div>}</div>}
+                            {activeTab === 'copilot' && <div className="h-full flex flex-col bg-white rounded-xl shadow-lg border overflow-hidden"><div className="p-4 bg-slate-50 border-b flex gap-3 items-center"><MessageSquare className="text-blue-600" /><h3 className="font-bold">GTAI Copilot</h3></div><div className="flex-1 overflow-y-auto p-6 space-y-4">{messages.map(m => <div key={m.id} className={`p-3 rounded-lg max-w-[80%] ${m.sender === 'user' ? 'ml-auto bg-blue-900 text-white' : 'bg-slate-100'}`}>{m.text}</div>)}<div ref={messagesEndRef} /></div><form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2"><input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600" placeholder="Frage eingeben..." /><button className="bg-blue-900 text-white px-4 py-2 rounded">Senden</button></form></div>}
+                            {activeTab === 'market' && <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border"><h2 className="text-2xl font-bold mb-6 flex gap-2"><Newspaper className="text-[#003366]" />Markt-Ticker</h2><form onSubmit={handleMarketSearch} className="flex gap-2 mb-4"><input value={marketQuery} onChange={e => setMarketQuery(e.target.value)} className="flex-1 border rounded-lg px-4 py-2" placeholder="Branche..." /><button disabled={isSearching} className="bg-[#003366] text-white px-4 py-2 rounded-lg">{isSearching ? <Loader2 className="animate-spin" /> : 'Suchen'}</button></form><div className="space-y-4">{marketResults.map((r, i) => <div key={i} className="p-4 border rounded hover:bg-slate-50"><h3 className="font-bold">{r.title}</h3><p className="text-sm">{r.snippet}</p></div>)}</div></div>}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // --- APP WRAPPER (MSAL PROVIDER) ---
+        const AppWrapper = () => {
+            return (
+                <MsalProvider instance={msalInstance}>
+                    <MainContent />
+                </MsalProvider>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<AppWrapper />);
+    </script>
+</body>
+</html>

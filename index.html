@@ -23,15 +23,6 @@
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Modern GTAI Palette */
-        .bg-gtai-dark { background-color: #003B6E; }
-        .text-gtai-dark { color: #003B6E; }
-        .border-gtai-dark { border-color: #003B6E; }
-        
-        /* Dezenteres Rot nur für Alerts */
-        .text-alert-red { color: #D32F2F; }
-        .bg-alert-red-soft { background-color: #FEE2E2; }
-        
         /* Hover Effekte */
         .hover-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
     </style>
@@ -92,17 +83,20 @@
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
             
+            // UI States
+            const [activeTaskTab, setActiveTaskTab] = useState('planner'); // 'planner' or 'todo'
+
             // Data States
             const [userProfile, setUserProfile] = useState({ displayName: "", jobTitle: "", mail: "", photoUrl: null });
             const [calendarEvents, setCalendarEvents] = useState([]);
             const [plannerTasks, setPlannerTasks] = useState([]);
             const [isLoadingData, setIsLoadingData] = useState(false);
 
-            // Mock Data for Intranet (Simuliert echte Links)
+            // Mock Data for Intranet
             const [intranetNews, setIntranetNews] = useState([
-                { id: 1, title: "Neue Reiserichtlinien ab 2025", summary: "Anpassung der Verpflegungspauschalen.", date: "Heute", category: "HR", url: "https://gtai.sharepoint.com/sites/Intranet/News/Reise2025" },
-                { id: 2, title: "Wartungsarbeiten SharePoint", summary: "Samstag 10-12 Uhr eingeschränkt.", date: "Gestern", category: "IT", url: "https://gtai.sharepoint.com/sites/IT-Support/News/Wartung" },
-                { id: 3, title: "Erfolg auf der Hannover Messe", summary: "Besucherrekord am GTAI Stand.", date: "28.10.", category: "News", url: "https://gtai.sharepoint.com/sites/Comms/News/Hannover" }
+                { id: 1, title: "Neue Reiserichtlinien ab 2025", summary: "Anpassung der Verpflegungspauschalen.", date: "Heute", category: "HR", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 2, title: "Wartungsarbeiten SharePoint", summary: "Samstag 10-12 Uhr eingeschränkt.", date: "Gestern", category: "IT", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 3, title: "Erfolg auf der Hannover Messe", summary: "Besucherrekord am GTAI Stand.", date: "28.10.", category: "News", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" }
             ]);
 
             // Local States
@@ -138,7 +132,12 @@
 
                     // Planner
                     const taskData = await callMsGraph(instance, accounts, "/me/planner/tasks");
-                    setPlannerTasks(taskData.value || []);
+                    // Enrich with Mock Team Names (Graph doesn't give Plan names directly in task list easily without extra calls)
+                    const enrichedTasks = (taskData.value || []).map(t => ({
+                        ...t,
+                        planName: ["Marketing Team", "IT Projekt Alpha", "HR Onboarding"][Math.floor(Math.random() * 3)]
+                    }));
+                    setPlannerTasks(enrichedTasks);
                 } catch (e) { console.error(e); } finally { setIsLoadingData(false); }
             };
 
@@ -163,11 +162,11 @@
             if (!isAuthenticated) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-                        <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md w-full border-t-4 border-gtai-dark">
-                            <div className="mb-6 flex justify-center"><div className="bg-slate-50 p-4 rounded-full"><Globe className="w-12 h-12 text-gtai-dark" /></div></div>
+                        <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md w-full border-t-4 border-[#003B6E]">
+                            <div className="mb-6 flex justify-center"><div className="bg-slate-50 p-4 rounded-full"><Globe className="w-12 h-12 text-[#003B6E]" /></div></div>
                             <h1 className="text-2xl font-bold text-slate-800 mb-2">GTAI Mitarbeiter Hub</h1>
                             <p className="text-sm text-slate-500 mb-8">Bitte melden Sie sich mit Ihrem GTAI-Konto an.</p>
-                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-gtai-dark text-white py-3 px-4 rounded-lg hover:bg-blue-900 transition font-medium flex justify-center items-center gap-2 shadow-lg shadow-blue-900/10">
+                            <button onClick={() => instance.loginPopup(loginRequest)} className="w-full bg-[#003B6E] text-white py-3 px-4 rounded-lg hover:bg-blue-900 transition font-medium flex justify-center items-center gap-2 shadow-lg shadow-blue-900/10">
                                 Mit Microsoft anmelden
                             </button>
                         </div>
@@ -178,8 +177,8 @@
             return (
                 <div className="flex h-screen bg-slate-50 overflow-hidden">
                     {/* SIDEBAR */}
-                    <aside className={`bg-gtai-dark text-white flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} z-30 shadow-2xl`}>
-                        <div className="h-16 flex items-center px-6 border-b border-white/10 bg-gtai-dark/50 backdrop-blur-sm">
+                    <aside className={`bg-[#003B6E] text-white flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} z-30 shadow-2xl`}>
+                        <div className="h-16 flex items-center px-6 border-b border-white/10 bg-[#003B6E]">
                             {isSidebarOpen && <span className="font-bold text-lg tracking-wide flex items-center gap-2"><Globe size={20} /> GTAI HUB</span>}
                             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="ml-auto p-1 hover:bg-white/10 rounded-lg"><Menu size={20} /></button>
                         </div>
@@ -192,14 +191,14 @@
                                 { id: 'calendar', icon: <Calendar />, label: 'Kalender' },
                                 { id: 'copilot', icon: <Bot />, label: 'Dexter Agent' }
                             ].map(item => (
-                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-white text-gtai-dark shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
                                     {item.icon} {isSidebarOpen && <span>{item.label}</span>}
                                 </button>
                             ))}
 
                             <div className="pt-6">
                                 <p className={`px-3 text-xs font-bold text-blue-300 uppercase tracking-wider mb-2 ${!isSidebarOpen && 'text-center'}`}>{isSidebarOpen ? 'Links' : '•'}</p>
-                                <a href="https://comres.gtai.de" target="_blank" className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 text-blue-100 transition-colors no-underline">
+                                <a href="https://thankful-moss-0fc20ef03.3.azurestaticapps.net" target="_blank" className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 text-blue-100 transition-colors no-underline">
                                     <Database size={20} /> {isSidebarOpen && <span>Comres | Internal</span>}
                                 </a>
                             </div>
@@ -208,7 +207,7 @@
                         <div className="p-4 border-t border-white/10 bg-black/10">
                             <div className="flex items-center gap-3">
                                 {userProfile.photoUrl ? <img src={userProfile.photoUrl} className="w-10 h-10 rounded-full border border-white/30 object-cover" /> : <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold">{getFirstName().substring(0,2)}</div>}
-                                {isSidebarOpen && <div className="overflow-hidden"><p className="text-sm font-bold truncate">{getFirstName()}</p><button onClick={() => instance.logoutPopup()} className="text-xs text-blue-300 hover:text-white flex items-center gap-1"><LogOut size={12} /> Logout</button></div>}
+                                {isSidebarOpen && <div className="overflow-hidden"><p className="text-sm font-bold truncate">{getFirstName()}</p><button onClick={() => instance.logoutPopup()} className="text-xs text-blue-200 hover:text-white flex items-center gap-1"><LogOut size={12} /> Logout</button></div>}
                             </div>
                         </div>
                     </aside>
@@ -217,11 +216,11 @@
                     <main className="flex-1 flex flex-col h-full bg-[#f3f4f6]">
                         <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10">
                             <h2 className="text-xl font-bold text-slate-800 capitalize flex items-center gap-2">
-                                {activeTab === 'copilot' ? <Bot className="text-gtai-dark" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-gtai-dark" /> : null}
+                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : null}
                                 {activeTab === 'copilot' ? 'Dexter AI' : activeTab}
                             </h2>
                             <div className="flex items-center gap-4">
-                                <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 transition ${isLoadingData && 'animate-spin text-gtai-dark'}`}><RefreshCw size={20}/></button>
+                                <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 transition ${isLoadingData && 'animate-spin text-[#003B6E]'}`}><RefreshCw size={20}/></button>
                                 <div className="h-6 w-px bg-slate-200"></div>
                                 <div className="flex flex-col items-end">
                                     <span className="text-sm font-semibold text-slate-700">{userProfile.displayName || "Gast"}</span>
@@ -235,7 +234,7 @@
                                 <div className="max-w-7xl mx-auto space-y-8 fade-in">
                                     
                                     {/* HERO SECTION */}
-                                    <div className="bg-gradient-to-br from-gtai-dark to-[#00509e] rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+                                    <div className="bg-[#003B6E] rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                                         <div className="relative z-10 max-w-3xl">
                                             <h1 className="text-3xl font-bold mb-3">Hallo {getFirstName()}!</h1>
                                             <p className="text-blue-100 mb-6 text-lg">Dein persönlicher Hub für heute. Termine checken oder Dexter fragen?</p>
@@ -245,8 +244,8 @@
                                                     <Bot className="absolute left-4 top-3.5 text-slate-400" size={20} />
                                                     <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-12 pr-4 py-3 text-slate-800 outline-none" />
                                                 </div>
-                                                <button className="bg-blue-600 text-white px-6 font-bold hover:bg-blue-500 transition flex items-center gap-2">
-                                                    Los <ArrowRight size={18} />
+                                                <button className="bg-[#E4002B] text-white px-6 font-bold hover:bg-[#c20024] transition flex items-center gap-2">
+                                                    Go <ArrowRight size={18} />
                                                 </button>
                                             </form>
                                         </div>
@@ -256,11 +255,11 @@
                                     {/* CONTENT GRID */}
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                                         
-                                        {/* CALENDAR CARD */}
+                                        {/* KALENDER CARD */}
                                         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col h-full overflow-hidden group">
                                             <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-                                                <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Calendar className="text-gtai-dark" /> Nächste Termine</h3>
-                                                <a href="https://outlook.office.com/calendar/view/day" target="_blank" className="text-xs font-medium text-gtai-dark hover:bg-blue-50 px-3 py-1.5 rounded-full transition flex items-center gap-1">
+                                                <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Calendar className="text-[#003B6E]" /> Nächste Termine</h3>
+                                                <a href="https://outlook.office.com/calendar/view/day" target="_blank" className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition flex items-center gap-1">
                                                     Öffnen <ExternalLink size={12} />
                                                 </a>
                                             </div>
@@ -288,48 +287,83 @@
 
                                         {/* TASKS CARD (Split Planner / To-Do) */}
                                         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col h-full overflow-hidden">
-                                            {/* Tab Header for Tasks */}
+                                            {/* TAB HEADER */}
                                             <div className="flex border-b border-slate-100">
-                                                <div className="flex-1 p-4 text-center border-b-2 border-gtai-dark bg-blue-50/50 font-bold text-gtai-dark text-sm cursor-default">
+                                                <button 
+                                                    onClick={() => setActiveTaskTab('planner')}
+                                                    className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'planner' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                >
                                                     Planner (Team)
-                                                </div>
-                                                <div className="flex-1 p-4 text-center border-b-2 border-transparent text-slate-500 text-sm font-medium cursor-default bg-white">
+                                                </button>
+                                                <button 
+                                                    onClick={() => setActiveTaskTab('todo')}
+                                                    className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'todo' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                >
                                                     To-Do (Privat)
-                                                </div>
+                                                </button>
                                             </div>
                                             
+                                            {/* CONTENT AREA */}
                                             <div className="p-6 flex-1 flex flex-col">
-                                                <div className="flex justify-between items-center mb-4">
-                                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine Aufgaben aus Teams</span>
-                                                    <a href="https://tasks.office.com/" target="_blank" className="text-xs font-medium text-gtai-dark hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
-                                                </div>
-                                                <div className="space-y-3 flex-1">
-                                                    {plannerTasks.length === 0 ? <p className="text-slate-400 italic text-sm">Alles erledigt!</p> : 
-                                                     plannerTasks.slice(0, 4).map(task => (
-                                                        <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition group cursor-pointer">
-                                                            <div className="mt-1 text-slate-300 group-hover:text-gtai-dark transition"><CheckCircle size={16} /></div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-slate-800 leading-snug break-words">{task.title}</p>
-                                                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                                                                    <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-medium">Marketing Team</span>
-                                                                    {task.dueDateTime && <span className="text-alert-red flex items-center gap-1"><AlertTriangle size={10} /> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
-                                                                </p>
-                                                            </div>
+                                                {/* PLANNER VIEW */}
+                                                {activeTaskTab === 'planner' && (
+                                                    <div className="fade-in h-full flex flex-col">
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine Aufgaben aus Teams</span>
+                                                            <a href="https://tasks.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            {/* Footer for To-Do Link */}
-                                            <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
-                                                <button onClick={() => setActiveTab('tasks')} className="text-xs font-bold text-gtai-dark hover:underline">Zu meinen privaten To-Dos wechseln &rarr;</button>
+                                                        <div className="space-y-3 flex-1">
+                                                            {plannerTasks.length === 0 ? <p className="text-slate-400 italic text-sm">Alles erledigt!</p> : 
+                                                             plannerTasks.slice(0, 4).map(task => (
+                                                                <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition group cursor-pointer">
+                                                                    <div className="mt-1 text-slate-300 group-hover:text-[#003B6E] transition"><CheckCircle size={16} /></div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-medium text-slate-800 leading-snug break-words">{task.title}</p>
+                                                                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                                                                            <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-medium">{task.planName}</span>
+                                                                            {task.dueDateTime && <span className="text-[#E4002B] flex items-center gap-1"><AlertTriangle size={10} /> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* TO-DO VIEW */}
+                                                {activeTaskTab === 'todo' && (
+                                                    <div className="fade-in h-full flex flex-col">
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine private Liste</span>
+                                                            <a href="https://to-do.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
+                                                        </div>
+                                                        <ul className="space-y-2 flex-1">
+                                                            {todos.map(t => (
+                                                                <li key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition">
+                                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300'}`}>
+                                                                        {t.isBlocker && <div className="w-2.5 h-2.5 bg-[#E4002B] rounded-full"></div>}
+                                                                    </div>
+                                                                    <span className="text-sm text-slate-700 break-words flex-1 leading-snug">{t.text}</span>
+                                                                </li>
+                                                            ))}
+                                                            {todos.length === 0 && <li className="text-gray-400 text-sm italic">Liste leer.</li>}
+                                                        </ul>
+                                                        <div className="pt-4 border-t border-slate-50">
+                                                             <form onSubmit={handleAddTodo} className="flex gap-2">
+                                                                <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Neue Aufgabe..." className="flex-1 text-sm border rounded px-2 py-1 focus:ring-1 focus:ring-[#003B6E] outline-none" />
+                                                                <button className="text-xs bg-[#003B6E] text-white px-3 py-1 rounded hover:bg-blue-900 font-bold">Add</button>
+                                                             </form>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
                                         {/* NEWS CARD */}
                                         <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                                             <div className="flex justify-between items-center mb-6">
-                                                <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Globe className="text-gtai-dark" /> GTAI Intranet News</h3>
-                                                <a href="https://gtai.sharepoint.com/sites/GTAI-Intranet" target="_blank" className="text-sm font-medium text-gtai-dark bg-slate-100 px-4 py-2 rounded-lg hover:bg-slate-200 transition">Alle News ansehen</a>
+                                                <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Globe className="text-[#003B6E]" /> GTAI Intranet News</h3>
+                                                <a href="https://gtai.sharepoint.com/sites/GTAI-Intranet" target="_blank" className="text-sm font-medium text-[#003B6E] bg-slate-100 px-4 py-2 rounded-lg hover:bg-slate-200 transition">Alle News ansehen</a>
                                             </div>
                                             <div className="grid md:grid-cols-3 gap-6">
                                                 {intranetNews.map(news => (
@@ -339,9 +373,9 @@
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-100 px-2 py-1 rounded">{news.category}</span>
                                                                 <span className="text-xs text-slate-400">{news.date}</span>
                                                             </div>
-                                                            <h4 className="font-bold text-slate-800 mb-2 leading-tight group-hover:text-gtai-dark transition">{news.title}</h4>
+                                                            <h4 className="font-bold text-slate-800 mb-2 leading-tight group-hover:text-[#003B6E] transition break-words">{news.title}</h4>
                                                             <p className="text-sm text-slate-500 line-clamp-2 flex-1">{news.summary}</p>
-                                                            <div className="mt-4 flex items-center text-xs font-bold text-gtai-dark opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                                            <div className="mt-4 flex items-center text-xs font-bold text-[#003B6E] opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
                                                                 Mehr lesen <ArrowRight size={12} className="ml-1" />
                                                             </div>
                                                         </div>
@@ -358,7 +392,7 @@
                             {activeTab === 'copilot' && (
                                 <div className="max-w-4xl mx-auto h-full flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden fade-in">
                                     <div className="p-6 border-b border-slate-100 flex items-center gap-4 bg-slate-50/50">
-                                        <div className="w-12 h-12 bg-gtai-dark rounded-full flex items-center justify-center shadow-lg text-white"><Bot size={24} /></div>
+                                        <div className="w-12 h-12 bg-[#003B6E] rounded-full flex items-center justify-center shadow-lg text-white"><Bot size={24} /></div>
                                         <div>
                                             <h3 className="font-bold text-lg text-slate-800">Dexter</h3>
                                             <p className="text-xs text-slate-500 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Online & Verbunden mit Graph API</p>
@@ -367,7 +401,7 @@
                                     <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
                                         {messages.map((m, i) => (
                                             <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[80%] p-5 rounded-2xl shadow-sm text-sm leading-relaxed ${m.sender === 'user' ? 'bg-gtai-dark text-white rounded-tr-none' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none'}`}>
+                                                <div className={`max-w-[80%] p-5 rounded-2xl shadow-sm text-sm leading-relaxed ${m.sender === 'user' ? 'bg-[#003B6E] text-white rounded-tr-none' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none'}`}>
                                                     {m.text}
                                                 </div>
                                             </div>
@@ -376,8 +410,8 @@
                                     </div>
                                     <div className="p-4 bg-white border-t border-slate-100">
                                         <form onSubmit={(e) => { e.preventDefault(); if(!inputText.trim()) return; setMessages(p=>[...p,{sender:'user',text:inputText}]); setInputText(''); setTimeout(()=>setMessages(p=>[...p,{sender:'bot',text:'Ich habe das verstanden, aber als Prototyp antworte ich nur simuliert.'}]),1000); }} className="relative">
-                                            <input value={inputText} onChange={e=>setInputText(e.target.value)} className="w-full bg-slate-100 border-0 rounded-xl px-5 py-4 pr-16 text-slate-800 focus:ring-2 focus:ring-gtai-dark outline-none transition" placeholder="Schreib eine Nachricht an Dexter..." />
-                                            <button className="absolute right-2 top-2 p-2 bg-gtai-dark text-white rounded-lg hover:bg-blue-900 transition"><ArrowRight size={20} /></button>
+                                            <input value={inputText} onChange={e=>setInputText(e.target.value)} className="w-full bg-slate-100 border-0 rounded-xl px-5 py-4 pr-16 text-slate-800 focus:ring-2 focus:ring-[#003B6E] outline-none transition" placeholder="Schreib eine Nachricht an Dexter..." />
+                                            <button className="absolute right-2 top-2 p-2 bg-[#003B6E] text-white rounded-lg hover:bg-blue-900 transition"><ArrowRight size={20} /></button>
                                         </form>
                                     </div>
                                 </div>

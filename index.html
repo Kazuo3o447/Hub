@@ -12,7 +12,7 @@
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
         "lucide-react": "https://esm.sh/lucide-react@0.292.0",
         "@azure/msal-browser": "https://esm.sh/@azure/msal-browser@3.10.0",
-        "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.0.12?external=react,react-dom,@azure/msal-browser"
+        "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.0.12?exte<rnal=react,react-dom,@azure/msal-browser"
       }
     }
     </script>
@@ -101,7 +101,14 @@
             const [intranetNews, setIntranetNews] = useState([
                 { id: 1, title: "Neue Reiserichtlinien ab 2025", summary: "Anpassung der Verpflegungspauschalen.", date: "Heute", category: "HR", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
                 { id: 2, title: "Wartungsarbeiten SharePoint", summary: "Samstag 10-12 Uhr eingeschränkt.", date: "Gestern", category: "IT", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
-                { id: 3, title: "Erfolg auf der Hannover Messe", summary: "Besucherrekord am GTAI Stand.", date: "28.10.", category: "News", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" }
+                { id: 3, title: "Erfolg auf der Hannover Messe", summary: "Besucherrekord am GTAI Stand.", date: "28.10.", category: "News", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 4, title: "Weihnachtsfeier 2024", summary: "Einladung und Anmeldung ab sofort möglich.", date: "25.10.", category: "Events", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 5, title: "Quartalszahlen Q3", summary: "Positive Entwicklung in den Kernmärkten.", date: "20.10.", category: "Management", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 6, title: "Neues IT-Ticket System", summary: "Ab November nutzen wir Jira Service Management.", date: "15.10.", category: "IT", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 7, title: "Gesundheitstag", summary: "Kostenlose Check-ups im Foyer.", date: "10.10.", category: "HR", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 8, title: "Webinar: KI im Export", summary: "Expertenrunde am Donnerstag.", date: "05.10.", category: "Webinar", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 9, title: "Kantinenplan November", summary: "Der neue Speiseplan ist online.", date: "01.10.", category: "Service", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" },
+                { id: 10, title: "Jubiläum: 10 Jahre Standort Bonn", summary: "Rückblick auf eine Erfolgsgeschichte.", date: "28.09.", category: "News", url: "https://gtai.sharepoint.com/sites/GTAI-Intranet" }
             ]);
 
             // Local States
@@ -323,6 +330,10 @@
                             <button onClick={() => setActiveTab('calendar')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'calendar' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
                                 <Calendar size={20} /> {isSidebarOpen && <span>Kalender</span>}
                             </button>
+
+                            <button onClick={() => setActiveTab('news')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'news' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <Newspaper size={20} /> {isSidebarOpen && <span>GTAI News</span>}
+                            </button>
                             
                             <button onClick={() => setActiveTab('copilot')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'copilot' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
                                 <Bot size={20} /> {isSidebarOpen && <span>Dexter</span>}
@@ -348,8 +359,8 @@
                     <main className="flex-1 flex flex-col h-full bg-[#f3f4f6]">
                         <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10 shrink-0">
                             <h2 className="text-xl font-bold text-slate-800 capitalize flex items-center gap-2">
-                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'planner' ? <Users className="text-[#003B6E]" /> : activeTab === 'todo' ? <ListTodo className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : null}
-                                {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'planner' ? 'Planner (Teamaufgaben)' : activeTab === 'todo' ? 'Meine To-Dos' : activeTab === 'calendar' ? 'Mein Kalender' : 'Dashboard'}
+                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'planner' ? <Users className="text-[#003B6E]" /> : activeTab === 'todo' ? <ListTodo className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : activeTab === 'news' ? <Newspaper className="text-[#003B6E]" /> : null}
+                                {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'planner' ? 'Planner (Teamaufgaben)' : activeTab === 'todo' ? 'Meine To-Dos' : activeTab === 'calendar' ? 'Mein Kalender' : activeTab === 'news' ? 'GTAI News' : 'Dashboard'}
                             </h2>
                             <div className="flex items-center gap-4">
                                 <button onClick={loadAllData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 transition ${isLoadingData && 'animate-spin text-[#003B6E]'}`}><RefreshCw size={20}/></button>
@@ -499,7 +510,7 @@
                                         <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Globe className="text-[#003B6E]" /> GTAI Intranet News</h3>
-                                                <a href="https://gtai.sharepoint.com/sites/GTAI-Intranet" target="_blank" className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition">Alle ansehen</a>
+                                                <button onClick={() => setActiveTab('news')} className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition">Alle ansehen</button>
                                             </div>
                                             <div className="space-y-4 flex-1">
                                                 {intranetNews.slice(0,3).map(news => (
@@ -693,6 +704,31 @@
                                                 </div>
                                             ))
                                         )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ================= NEWS FULL VIEW ================= */}
+                            {activeTab === 'news' && (
+                                <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-[80vh] fade-in">
+                                    <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+                                        <h2 className="text-2xl font-bold text-[#003B6E] flex items-center gap-3"><Globe size={28} /> GTAI Intranet News</h2>
+                                        <a href="https://gtai.sharepoint.com/sites/GTAI-Intranet" target="_blank" className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition flex items-center gap-2">
+                                            Zum Intranet <ExternalLink size={14} />
+                                        </a>
+                                    </div>
+                                    <div className="p-8 space-y-6 flex-1">
+                                        {intranetNews.map(news => (
+                                            <a key={news.id} href={news.url} target="_blank" className="block bg-white border border-slate-100 p-5 rounded-xl hover:border-[#003B6E] hover:shadow-md transition relative overflow-hidden group">
+                                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#003B6E] group-hover:bg-[#E4002B] transition-colors"></div>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{news.date}</span>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#003B6E] bg-blue-50 px-2 py-1 rounded">{news.category}</span>
+                                                </div>
+                                                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-[#003B6E] transition-colors">{news.title}</h3>
+                                                <p className="text-sm text-slate-500">{news.summary}</p>
+                                            </a>
+                                        ))}
                                     </div>
                                 </div>
                             )}

@@ -83,6 +83,9 @@
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
             
+            // UI States
+            const [activeTaskTab, setActiveTaskTab] = useState('planner'); // 'planner' or 'todo'
+
             // Data States
             const [userProfile, setUserProfile] = useState({ displayName: "", jobTitle: "", mail: "", photoUrl: null });
             const [calendarEvents, setCalendarEvents] = useState([]);
@@ -142,6 +145,7 @@
 
                     // Planner
                     const taskData = await callMsGraph(instance, accounts, "/me/planner/tasks");
+                    // Enrich with Mock Team Names (Graph doesn't give Plan names directly in task list easily without extra calls)
                     const enrichedTasks = (taskData.value || []).map(t => ({
                         ...t,
                         planName: ["Marketing Team", "IT Projekt Alpha", "HR Onboarding"][Math.floor(Math.random() * 3)]
@@ -187,13 +191,16 @@
                 );
             }
             
+            // --- PLANNER STATS CALCULATION ---
             const plannerStats = {
                 total: plannerTasks.length,
-                high: plannerTasks.filter(t => t.priority < 5).length,
+                high: plannerTasks.filter(t => t.priority < 5).length, // Graph API: 0-4 is High/Urgent
                 overdue: plannerTasks.filter(t => t.dueDateTime && new Date(t.dueDateTime) < new Date()).length
             };
 
+            // --- GROUPING FOR CALENDAR ---
             const groupedEvents = calendarEvents.reduce((groups, event) => {
+                // Safe check for dateObj to prevent crash if data is raw
                 if (!event.dateObj) return groups; 
                 const key = ['Heute', 'Morgen'].includes(event.dateObj.label) ? event.dateObj.label : event.dateObj.date;
                 if (!groups[key]) groups[key] = { label: key, dateFull: event.dateObj.date, events: [] };
@@ -214,8 +221,7 @@
                             <p className={`px-3 text-xs font-bold text-blue-300 uppercase tracking-wider mb-2 ${!isSidebarOpen && 'text-center'}`}>{isSidebarOpen ? 'Menü' : '•'}</p>
                             {[
                                 { id: 'dashboard', icon: <LayoutDashboard />, label: 'Dashboard' },
-                                { id: 'todo', icon: <ListTodo />, label: 'Meine To-Dos' },
-                                { id: 'tasks', icon: <CheckCircle />, label: 'Planner (Teams)' },
+                                { id: 'tasks', icon: <CheckCircle />, label: 'Aufgaben' },
                                 { id: 'calendar', icon: <Calendar />, label: 'Kalender' },
                                 { id: 'copilot', icon: <Bot />, label: 'Dexter Agent' }
                             ].map(item => (
@@ -318,57 +324,82 @@
                                             </div>
                                         </div>
 
-                                        {/* NEW: DEDICATED TO-DO CARD (TOP RIGHT) */}
+                                        {/* TASKS CARD (Split Planner / To-Do) */}
                                         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col h-full overflow-hidden">
-                                            <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-                                                <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><ListTodo className="text-[#003B6E]" /> Meine Fokus-Liste</h3>
-                                                <a href="https://to-do.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition flex items-center gap-1">
-                                                    Zur App <ExternalLink size={12} />
-                                                </a>
+                                            {/* TAB HEADER */}
+                                            <div className="flex border-b border-slate-100">
+                                                <button 
+                                                    onClick={() => setActiveTaskTab('planner')}
+                                                    className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'planner' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                >
+                                                    Planner (Team)
+                                                </button>
+                                                <button 
+                                                    onClick={() => setActiveTaskTab('todo')}
+                                                    className={`flex-1 p-4 text-center font-bold text-sm transition ${activeTaskTab === 'todo' ? 'border-b-2 border-[#003B6E] text-[#003B6E] bg-blue-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                >
+                                                    To-Do (Privat)
+                                                </button>
                                             </div>
+                                            
+                                            {/* CONTENT AREA */}
                                             <div className="p-6 flex-1 flex flex-col">
-                                                {/* Quick Add in Dashboard */}
-                                                <form onSubmit={handleAddTodo} className="flex gap-2 mb-4">
-                                                    <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="+ Aufgabe..." className="flex-1 text-sm border rounded px-3 py-2 focus:ring-1 focus:ring-[#003B6E] outline-none bg-slate-50 focus:bg-white transition" />
-                                                    <button className="bg-[#003B6E] text-white px-3 rounded hover:bg-blue-900"><Plus size={18}/></button>
-                                                </form>
-
-                                                <ul className="space-y-2 flex-1 overflow-y-auto max-h-[200px]">
-                                                    {todos.map(t => (
-                                                        <li key={t.id} onClick={() => toggleTodo(t.id)} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition cursor-pointer group/todo">
-                                                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300 group-hover/todo:border-[#003B6E]'} ${t.done ? 'bg-slate-200 border-slate-200' : 'bg-white'}`}>
-                                                                {t.done ? <CheckSquare size={12} className="text-slate-500" /> : (t.isBlocker && <div className="w-2.5 h-2.5 bg-[#E4002B] rounded-full"></div>)}
-                                                            </div>
-                                                            <span className={`text-sm break-words flex-1 leading-snug transition-all ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.text}</span>
-                                                        </li>
-                                                    ))}
-                                                    {todos.length === 0 && <li className="text-gray-400 text-sm italic">Alles erledigt!</li>}
-                                                </ul>
-                                            </div>
-                                        </div>
-
-                                        {/* PLANNER (TEAM) CARD (BOTTOM LEFT) */}
-                                        <div onClick={() => setActiveTab('tasks')} className="bg-white rounded-2xl shadow-sm border border-slate-100 hover-card flex flex-col h-full overflow-hidden cursor-pointer group">
-                                            <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-                                                <h3 className="font-bold flex gap-2 text-lg items-center text-slate-800 group-hover:text-[#003B6E] transition"><CheckCircle className="text-[#003B6E]" /> Team-Aufgaben</h3>
-                                                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100">Live Planner</span>
-                                            </div>
-                                            <div className="p-6 space-y-3 flex-1">
-                                                {plannerTasks.length === 0 ? <p className="text-gray-400 text-sm italic">Keine zugewiesenen Aufgaben.</p> : 
-                                                 plannerTasks.slice(0, 4).map(task => (
-                                                    <div key={task.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex justify-between items-start gap-3 hover:bg-white hover:border-blue-200 transition hover:shadow-sm">
-                                                        <div className="flex-1 min-w-0">
-                                                            <span className="text-sm font-medium text-slate-800 break-words block mb-1">{task.title}</span>
-                                                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{task.planName}</span>
+                                                {/* PLANNER VIEW */}
+                                                {activeTaskTab === 'planner' && (
+                                                    <div className="fade-in h-full flex flex-col">
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine Aufgaben aus Teams</span>
+                                                            <a href="https://tasks.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
                                                         </div>
-                                                        {task.dueDateTime && <span className="text-xs font-bold text-[#E4002B] bg-red-50 px-2 py-1 rounded shrink-0 flex items-center gap-1"><Clock size={10}/> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
+                                                        <div className="space-y-3 flex-1">
+                                                            {plannerTasks.length === 0 ? <p className="text-slate-400 italic text-sm">Alles erledigt!</p> : 
+                                                             plannerTasks.slice(0, 4).map(task => (
+                                                                <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition group cursor-pointer">
+                                                                    <div className="mt-1 text-slate-300 group-hover:text-[#003B6E] transition"><CheckCircle size={16} /></div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-medium text-slate-800 leading-snug break-words">{task.title}</p>
+                                                                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                                                                            <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-medium">{task.planName}</span>
+                                                                            {task.dueDateTime && <span className="text-[#E4002B] flex items-center gap-1"><AlertTriangle size={10} /> {new Date(task.dueDateTime).toLocaleDateString()}</span>}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                ))}
+                                                )}
+
+                                                {/* TO-DO VIEW */}
+                                                {activeTaskTab === 'todo' && (
+                                                    <div className="fade-in h-full flex flex-col">
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine private Liste</span>
+                                                            <a href="https://to-do.office.com/" target="_blank" className="text-xs font-medium text-[#003B6E] hover:underline flex items-center gap-1">Zur App <ExternalLink size={10} /></a>
+                                                        </div>
+                                                        <ul className="space-y-2 flex-1">
+                                                            {todos.map(t => (
+                                                                <li key={t.id} onClick={() => toggleTodo(t.id)} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition cursor-pointer group/todo">
+                                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${t.isBlocker ? 'border-[#E4002B]' : 'border-slate-300 group-hover/todo:border-[#003B6E]'} ${t.done ? 'bg-slate-200 border-slate-200' : 'bg-white'}`}>
+                                                                        {t.done ? <CheckSquare size={12} className="text-slate-500" /> : (t.isBlocker && <div className="w-2.5 h-2.5 bg-[#E4002B] rounded-full"></div>)}
+                                                                    </div>
+                                                                    <span className={`text-sm break-words flex-1 leading-snug transition-all ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.text}</span>
+                                                                </li>
+                                                            ))}
+                                                            {todos.length === 0 && <li className="text-gray-400 text-sm italic">Liste leer.</li>}
+                                                        </ul>
+                                                        <div className="pt-4 border-t border-slate-50">
+                                                             <form onSubmit={handleAddTodo} className="flex gap-2">
+                                                                <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Neue Aufgabe..." className="flex-1 text-sm border rounded px-2 py-1 focus:ring-1 focus:ring-[#003B6E] outline-none" />
+                                                                <button className="text-xs bg-[#003B6E] text-white px-3 py-1 rounded hover:bg-blue-900 font-bold">Add</button>
+                                                             </form>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
                                         {/* NEWS CARD (BOTTOM RIGHT) */}
-                                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
+                                        <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><Globe className="text-[#003B6E]" /> GTAI Intranet News</h3>
                                                 <a href="https://gtai.sharepoint.com/sites/GTAI-Intranet" target="_blank" className="text-xs font-medium text-[#003B6E] hover:bg-blue-50 px-3 py-1.5 rounded-full transition">Alle ansehen</a>
@@ -420,9 +451,9 @@
                                 </div>
                             )}
 
-                            {/* FULL PLANNER STATS + LIST VIEW */}
-                            {activeTab === 'tasks' && (
-                                <div className="max-w-6xl mx-auto fade-in space-y-6 h-full flex flex-col">
+                            {/* PLANNER STATS + LIST VIEW */}
+                            {activeTab === 'tasks' && activeTaskTab === 'planner' && (
+                                <div className="max-w-5xl mx-auto fade-in space-y-6 h-full flex flex-col">
                                     
                                     <div className="flex justify-between items-end">
                                         <h2 className="text-2xl font-bold text-[#003B6E] flex items-center gap-2"><CheckCircle size={28} /> Planner Aufgaben (Team)</h2>

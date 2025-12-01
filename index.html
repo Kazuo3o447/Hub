@@ -91,7 +91,7 @@
             
             // UI States
             const [activeTaskTab, setActiveTaskTab] = useState('planner'); // 'planner' or 'todo'
-            const messagesEndRef = useRef(null); // FIXED: Added missing ref
+            const messagesEndRef = useRef(null); 
 
             // Data States
             const [userProfile, setUserProfile] = useState({ displayName: "", jobTitle: "", mail: "", photoUrl: null });
@@ -112,11 +112,16 @@
             ]);
             const [newTodoText, setNewTodoText] = useState('');
             const [isBlocker, setIsBlocker] = useState(false);
+            const [blockerDate, setBlockerDate] = useState(new Date().toISOString().slice(0, 10));
+            const [blockerTimeStart, setBlockerTimeStart] = useState("09:00");
+            const [blockerTimeEnd, setBlockerTimeEnd] = useState("10:00");
             
             // Chat States
             const [messages, setMessages] = useState([{ sender: 'bot', text: "Hallo! Ich bin Dexter, dein GTAI Copilot. Ich kann dir bei der Suche nach Dokumenten helfen, Termine planen oder Fragen zu internen Prozessen beantworten." }]);
             const [dexterInput, setDexterInput] = useState('');
             const [isTyping, setIsTyping] = useState(false);
+
+            const gtaiLogoUrl = "https://www.gtai.de/resource/blob/164/c70415786210000/gtai-logo-data.svg";
 
             // --- EFFECTS ---
             useEffect(() => {
@@ -170,10 +175,21 @@
                 } catch (e) { console.error(e); } finally { setIsLoadingData(false); }
             };
 
-            const createCalendarBlocker = async (title) => {
-                const start = new Date(); 
-                const end = new Date(start.getTime() + 60 * 60 * 1000); 
-                const event = { subject: `🛡️ FOKUS: ${title}`, start: { dateTime: start.toISOString(), timeZone: "UTC" }, end: { dateTime: end.toISOString(), timeZone: "UTC" } };
+            const createCalendarBlocker = async (title, date, startTime, endTime) => {
+                const startDateTime = new Date(`${date}T${startTime}:00`);
+                const endDateTime = new Date(`${date}T${endTime}:00`);
+                
+                if (endDateTime <= startDateTime) {
+                    alert("Das Ende muss nach dem Start liegen.");
+                    return;
+                }
+
+                const event = { 
+                    subject: `🛡️ FOKUS: ${title}`, 
+                    start: { dateTime: startDateTime.toISOString(), timeZone: "UTC" }, 
+                    end: { dateTime: endDateTime.toISOString(), timeZone: "UTC" },
+                    showAs: 'busy'
+                };
                 try { await callMsGraph(instance, accounts, "/me/events", "POST", event); loadAllData(); } catch (e) { alert(e.message); }
             };
 
@@ -181,8 +197,15 @@
                 e.preventDefault();
                 if (!newTodoText.trim()) return;
                 setTodos([...todos, { id: Date.now(), text: newTodoText, isBlocker, done: false }]);
-                if (isBlocker) createCalendarBlocker(newTodoText);
-                setNewTodoText(''); setIsBlocker(false);
+                if (isBlocker) {
+                    createCalendarBlocker(newTodoText, blockerDate, blockerTimeStart, blockerTimeEnd);
+                }
+                setNewTodoText(''); 
+                setIsBlocker(false);
+                // Reset times to default
+                setBlockerDate(new Date().toISOString().slice(0, 10));
+                setBlockerTimeStart("09:00");
+                setBlockerTimeEnd("10:00");
             };
             
             const toggleTodo = (id) => {
@@ -254,16 +277,18 @@
                         
                         <div className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
                             <p className={`px-3 text-xs font-bold text-blue-300 uppercase tracking-wider mb-2 ${!isSidebarOpen && 'text-center'}`}>{isSidebarOpen ? 'Menü' : '•'}</p>
-                            {[
-                                { id: 'dashboard', icon: <LayoutDashboard />, label: 'Dashboard' },
-                                { id: 'tasks', icon: <CheckCircle />, label: 'Aufgaben' },
-                                { id: 'calendar', icon: <Calendar />, label: 'Kalender' },
-                                { id: 'copilot', icon: <Bot />, label: 'Dexter' }
-                            ].map(item => (
-                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
-                                    {item.icon} {isSidebarOpen && <span>{item.label}</span>}
-                                </button>
-                            ))}
+                            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'dashboard' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <LayoutDashboard /> {isSidebarOpen && <span>Dashboard</span>}
+                            </button>
+                            <button onClick={() => setActiveTab('tasks')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'tasks' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <CheckCircle /> {isSidebarOpen && <span>Aufgaben</span>}
+                            </button>
+                            <button onClick={() => setActiveTab('calendar')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'calendar' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <Calendar /> {isSidebarOpen && <span>Kalender</span>}
+                            </button>
+                            <button onClick={() => setActiveTab('copilot')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${activeTab === 'copilot' ? 'bg-white text-[#003B6E] shadow-md font-semibold' : 'hover:bg-white/10 text-blue-100'} ${!isSidebarOpen && 'justify-center'}`}>
+                                <img src={gtaiLogoUrl} alt="Dexter" className="w-6 h-auto brightness-0 invert" /> {isSidebarOpen && <span>Dexter</span>}
+                            </button>
 
                             <div className="pt-6">
                                 <p className={`px-3 text-xs font-bold text-blue-300 uppercase tracking-wider mb-2 ${!isSidebarOpen && 'text-center'}`}>{isSidebarOpen ? 'GTAI-Apps' : '•'}</p>
@@ -285,7 +310,7 @@
                     <main className="flex-1 flex flex-col h-full bg-[#f3f4f6]">
                         <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm z-10 shrink-0">
                             <h2 className="text-xl font-bold text-slate-800 capitalize flex items-center gap-2">
-                                {activeTab === 'copilot' ? <Bot className="text-[#003B6E]" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'tasks' ? <CheckCircle className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : null}
+                                {activeTab === 'copilot' ? <img src={gtaiLogoUrl} alt="Dexter" className="w-8 h-auto" /> : activeTab === 'dashboard' ? <LayoutDashboard className="text-[#003B6E]" /> : activeTab === 'tasks' ? <CheckCircle className="text-[#003B6E]" /> : activeTab === 'calendar' ? <Calendar className="text-[#003B6E]" /> : null}
                                 {activeTab === 'copilot' ? 'Dexter AI' : activeTab === 'tasks' ? 'Aufgaben & Planung' : activeTab === 'calendar' ? 'Mein Kalender' : 'Dashboard'}
                             </h2>
                             <div className="flex items-center gap-4">
@@ -317,15 +342,15 @@
                                             
                                             <form onSubmit={(e) => { e.preventDefault(); setActiveTab('copilot'); setMessages(p => [...p, {sender:'user', text: dexterInput}]); setTimeout(()=> { setMessages(p=>[...p, {sender:'bot', text: 'Wie kann ich helfen?'}])}, 1000); }} className="flex gap-0 shadow-xl rounded-xl overflow-hidden w-full max-w-xl">
                                                 <div className="relative flex-1 bg-white">
-                                                    <Bot className="absolute left-4 top-3.5 text-slate-400" size={20} />
-                                                    <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-12 pr-4 py-3 text-slate-800 outline-none" />
+                                                    <img src={gtaiLogoUrl} alt="Dexter" className="absolute left-4 top-3.5 w-6 h-auto brightness-0 opacity-40" />
+                                                    <input value={dexterInput} onChange={e => setDexterInput(e.target.value)} placeholder="Frag Dexter etwas..." className="w-full pl-14 pr-4 py-3 text-slate-800 outline-none" />
                                                 </div>
                                                 <button className="bg-[#E4002B] text-white px-6 font-bold hover:bg-[#c20024] transition flex items-center gap-2">
                                                     Go <ArrowRight size={18} />
                                                 </button>
                                             </form>
                                         </div>
-                                        <Bot size={220} className="absolute -right-10 -bottom-10 text-white/10 rotate-12" />
+                                        <img src={gtaiLogoUrl} alt="GTAI" className="absolute -right-10 -bottom-10 w-72 h-auto brightness-0 invert opacity-10 rotate-12" />
                                     </div>
 
                                     {/* CONTENT GRID */}
@@ -439,7 +464,9 @@
                             {activeTab === 'copilot' && (
                                 <div className="max-w-5xl mx-auto h-[85vh] flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden fade-in">
                                     <div className="p-6 border-b border-slate-100 flex items-center gap-4 bg-slate-50/80 backdrop-blur">
-                                        <div className="w-12 h-12 bg-[#003B6E] rounded-full flex items-center justify-center shadow-lg text-white ring-4 ring-blue-50"><Bot size={24} /></div>
+                                        <div className="w-12 h-12 bg-[#003B6E] rounded-full flex items-center justify-center shadow-lg text-white ring-4 ring-blue-50">
+                                            <img src={gtaiLogoUrl} alt="Dexter" className="w-8 h-auto brightness-0 invert" />
+                                        </div>
                                         <div>
                                             <h3 className="font-bold text-xl text-slate-800">Dexter</h3>
                                             <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
@@ -551,9 +578,28 @@
                                                     <input value={newTodoText} onChange={e=>setNewTodoText(e.target.value)} placeholder="Was möchtest du erledigen?" className="flex-1 p-4 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-[#003B6E] text-lg" />
                                                     <button className="bg-[#003B6E] text-white px-6 rounded-lg font-bold hover:bg-blue-900 transition shadow-lg"><Plus size={24} /></button>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <input type="checkbox" id="blocker-big" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} className="w-5 h-5 text-[#003B6E] rounded focus:ring-[#003B6E]" />
-                                                    <label htmlFor="blocker-big" className="text-slate-700 font-medium cursor-pointer select-none">Als <span className="text-[#E4002B] font-bold">Blocker</span> in Outlook eintragen</label>
+                                                <div className="flex flex-col gap-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="checkbox" id="blocker-big" checked={isBlocker} onChange={e=>setIsBlocker(e.target.checked)} className="w-5 h-5 text-[#003B6E] rounded focus:ring-[#003B6E]" />
+                                                        <label htmlFor="blocker-big" className="text-slate-700 font-medium cursor-pointer select-none flex items-center gap-2">Als <span className="text-[#E4002B] font-bold flex items-center gap-1"><CalendarClock size={16} /> Blocker</span> in Outlook eintragen</label>
+                                                    </div>
+                                                    {isBlocker && (
+                                                        <div className="flex flex-wrap gap-3 pl-7 fade-in">
+                                                            <div className="flex items-center border rounded-lg bg-white px-3 py-2 text-sm">
+                                                                <Calendar size={16} className="text-slate-400 mr-2" />
+                                                                <input type="date" value={blockerDate} onChange={e => setBlockerDate(e.target.value)} className="outline-none text-slate-700 bg-transparent" />
+                                                            </div>
+                                                            <div className="flex items-center border rounded-lg bg-white px-3 py-2 text-sm">
+                                                                <Clock size={16} className="text-slate-400 mr-2" />
+                                                                <input type="time" value={blockerTimeStart} onChange={e => setBlockerTimeStart(e.target.value)} className="outline-none text-slate-700 bg-transparent" />
+                                                            </div>
+                                                            <span className="text-slate-400 self-center">-</span>
+                                                            <div className="flex items-center border rounded-lg bg-white px-3 py-2 text-sm">
+                                                                <Clock size={16} className="text-slate-400 mr-2" />
+                                                                <input type="time" value={blockerTimeEnd} onChange={e => setBlockerTimeEnd(e.target.value)} className="outline-none text-slate-700 bg-transparent" />
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </form>
 
